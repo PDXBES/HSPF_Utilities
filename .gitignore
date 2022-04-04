@@ -1,1 +1,15 @@
 *.pyc
+.idea/HSPF_Utilities_BES.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/workspace.xml
+.idea/inspectionProfiles/profiles_settings.xml
+Plottest/ginput_manual_clabel_sgskip.py
+Plottest/lasso.py
+Plottest/pick_test.py
+Plottest/picker.py
+Plottest/PointBrowser.py
+Plottest/share_axis.py
+Plottest/stem.py
+Plottest/test.py
