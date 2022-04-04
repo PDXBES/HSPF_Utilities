@@ -1,0 +1,140 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+
+def flow_duration_curve(x, comparison=None, axis=0, ax=None, plot=True,
+                        log=True, percentiles=(5, 95), decimal_places=1,
+                        fdc_kwargs=None, fdc_range_kwargs=None,
+                        fdc_comparison_kwargs=None):
+    """
+    Calculates and plots a flow duration curve from x.
+
+    All observations/simulations are ordered and the empirical probability is
+    calculated. This is then plotted as a flow duration curve.
+
+    When x has more than one dimension along axis, a range flow duration curve
+    is plotted. This means that for every probability a min and max flow is
+    determined. This is then plotted as a fill between.
+
+    Additionally a comparison can be given to the function, which is plotted in
+    the same ax.
+
+    :param x: numpy array or pandas dataframe, discharge of measurements or
+    simulations
+    :param comparison: numpy array or pandas dataframe of discharge that should
+    also be plotted in the same ax
+    :param axis: int, axis along which x is iterated through
+    :param ax: matplotlib subplot object, if not None, will plot in that
+    instance
+    :param plot: bool, if False function will not show the plot, but simply
+    return the ax object
+    :param log: bool, if True plot on loglog axis
+    :param percentiles: tuple of int, percentiles that should be used for
+    drawing a range flow duration curve
+    :param fdc_kwargs: dict, matplotlib keywords for the normal fdc
+    :param fdc_range_kwargs: dict, matplotlib keywords for the range fdc
+    :param fdc_comparison_kwargs: dict, matplotlib keywords for the comparison
+    fdc
+
+    return: subplot object with the flow duration curve in it
+    """
+    # Convert x to an pandas dataframe, for easier handling
+    if not isinstance(x, pd.DataFrame):
+        x = pd.DataFrame(x)
+
+    # Get the dataframe in the right dimensions, if it is not in the expected
+    if axis != 0:
+        x = x.transpose()
+
+    # Convert comparison to a dataframe as well
+    if comparison is not None and not isinstance(comparison, pd.DataFrame):
+        comparison = pd.DataFrame(comparison)
+        # And transpose it is neccesary
+        if axis != 0:
+            comparison = comparison.transpose()
+
+    # Create an ax is neccesary
+    if ax is None:
+        fig, ax = plt.subplots(1,1)
+
+    # Make the y scale logarithmic if needed
+    if log:
+        ax.set_yscale("log")
+
+    # Determine if it is a range flow curve or a normal one by checking the
+    # dimensions of the dataframe
+    # If it is one, make a single fdc
+    if x.shape[1] == 1:
+        plot_single_flow_duration_curve(ax, x[0], fdc_kwargs)
+
+    # Make a range flow duration curve
+    else:
+        plot_range_flow_duration_curve(ax, x, percentiles, fdc_range_kwargs)
+
+    # Add a comparison to the plot if is present
+    if comparison is not None:
+        ax = plot_single_flow_duration_curve(ax, comparison[0],
+                                             fdc_comparison_kwargs)
+
+    # Name the x-axis
+    ax.set_xlabel("Exceedence [%]")
+
+    # show if requested
+    if plot:
+        plt.show()
+
+    return ax
+
+
+def plot_single_flow_duration_curve(ax, timeseries, kwargs):
+    """
+    Plots a single fdc into an ax.
+
+    :param ax: matplotlib subplot object
+    :param timeseries: list like iterable
+    :param kwargs: dict, keyword arguments for matplotlib
+
+    return: subplot object with a flow duration curve drawn into it
+    """
+    # Get the probability
+    exceedence = np.arange(1., len(timeseries) + 1) / len(timeseries)
+    exceedence *= 100
+    # Plot the curve, check for empty kwargs
+    if kwargs is not None:
+        ax.plot(exceedence, sorted(timeseries, reverse=True), **kwargs)
+    else:
+        ax.plot(exceedence, sorted(timeseries, reverse=True))
+    return ax
+
+
+def plot_range_flow_duration_curve(ax, x, percentiles, kwargs):
+    """
+    Plots a single range fdc into an ax.
+
+    :param ax: matplotlib subplot object
+    :param x: dataframe of several timeseries
+    :param decimal_places: defines how finely grained the range flow duration
+    curve is calculated and drawn. A low values makes it more finely grained.
+    A value which is too low might create artefacts.
+    :param kwargs: dict, keyword arguments for matplotlib
+
+    return: subplot object with a range flow duration curve drawn into it
+    """
+    # Get the probabilites
+    exceedence = np.arange(1.,len(np.array(x))+1) /len(np.array(x))
+    exceedence *= 100
+
+    # Sort the data
+    sort = np.sort(x, axis=0)[::-1]
+
+    # Get the percentiles
+    low_percentile = np.percentile(sort, percentiles[0], axis=1)
+    high_percentile = np.percentile(sort, percentiles[1], axis=1)
+
+    # Plot it, check for empty kwargs
+    if kwargs is not None:
+        ax.fill_between(exceedence, low_percentile, high_percentile, **kwargs)
+    else:
+        ax.fill_between(exceedence, low_percentile, high_percentile)
+    return ax
