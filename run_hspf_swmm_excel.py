@@ -15,6 +15,8 @@ import os
 
 import pandas as pd
 from common.simpleprogressbar import SimpleProgressBar
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.style as mplstyle
 mplstyle.use('fast')
@@ -32,7 +34,6 @@ print("# The program has started. A file dialog box should appear shortly    #")
 print("# in order to allow you to select an hspf swmm input excel file       #")
 print("# to start a simulation.                                              #")
 print("#######################################################################")
-
 app = QApplication(sys.argv)
 ex = App()
 input_file = ex.fileName
@@ -48,14 +49,15 @@ else:
     print("No file Selected.")
     sys.exit()
 
-run_obs_to_dss = True
-
 start_date_hru, start_date_swmm, start_date_lumped, \
 stop_date_hru, stop_date_swmm, stop_date_lumped = \
     hspf_data_io.read_simulation_start_and_stop_dates()
 
-run_lumped, run_hspf_swmm, run_hspf_hru, post_process_lump, post_process_swmm,\
-    include_all_links, write_swmm_to_dss, routing_time_step = hspf_data_io.read_simulation_and_post_processing()
+run_lumped, run_hspf_swmm, run_hspf_hru, \
+post_process_lumped_statistics, post_process_swmm_statistics,\
+post_process_lumped_events, post_process_swmm_events,\
+write_lumped_to_dss, write_swmm_to_dss,\
+include_all_links, routing_time_step = hspf_data_io.read_simulation_and_post_processing()
 
 scenario = hspf_data_io.read_scenario()
 
@@ -104,15 +106,14 @@ if not interactive:
     import matplotlib.pyplot as plt
     plt.ioff()
 
-write_swmm_to_dss = "YES"
-
-run_swmm_to_dss = True
+run_swmm_to_dss = False
 run_overlay = False
 run_hru = False
 run_import_transects = False
 run_import_losses = False
 run_swmm = False
 run_hspf_lumped = False
+
 
 if run_hspf_hru == "YES":
     run_overlay = False
@@ -147,34 +148,53 @@ elif run_lumped == "YES":
     run_import_transects = False
     run_import_losses = False
 
-if post_process_swmm == "YES":
+if post_process_swmm_statistics == "YES" or post_process_swmm_events == "YES":
     run_post_processing = True
+    if post_process_swmm_statistics == "YES":
+        run_statistics = True
+    else:
+        run_statistics = False
 else:
     run_post_processing = False
 
-if post_process_lump == "YES":
+if post_process_lumped_statistics == "YES" or post_process_lumped_events == "YES":
     run_lumped_post_processing = True
+    if post_process_lumped_statistics == "YES":
+        run_statistics = True
+    else:
+        run_statistics = False
 else:
     run_lumped_post_processing = False
 
 if write_swmm_to_dss == "YES":
     run_swmm_to_dss = True
+    run_obs_to_dss = True
 else:
     run_swmm_to_dss = False
+    run_obs_to_dss = False
+
+if write_lumped_to_dss == "YES":
+    run_lumped_to_dss = True
+    run_obs_to_dss = True
+else:
+    run_lumped_to_dss = False
+    run_obs_to_dss = False
 
 if run_hspf_swmm == "NO" and run_lumped == "NO" and run_hspf_hru == "NO" and \
-   post_process_swmm == "NO" and post_process_lump == "NO" and write_swmm_to_dss == "NO":
+    post_process_swmm_statistics == "NO" and post_process_lumped_statistics == "NO" and \
+    post_process_swmm_events == "NO" and post_process_lumped_events == "NO" and write_swmm_to_dss == "NO":
     print("No Operations Selected Program Exiting")
-    # sys.exit()
+    sys.exit(0)
 
-if post_process_swmm:
+if post_process_swmm_events or post_process_swmm_statistics:
     events_swmm = events[events['StartDate']>=start_date_swmm]
     events_swmm = events_swmm[events_swmm['EndDate'] <= stop_date_swmm]
-if post_process_lump:
+if post_process_lumped_events or post_process_lumped_statistics:
     events_lumped = events[events['StartDate'] >= start_date_lumped]
     events_lumped = events_lumped[events_lumped['EndDate'] <= stop_date_lumped]
 
 rgs = [rain_gage]
+simulated_link_names = None
 if run_post_processing or run_lumped_post_processing:
     if len(swmm_link) > 1:
         simulated_link_names = swmm_link
@@ -448,175 +468,178 @@ for rg in rgs:
                     file_path = swmm_simulation_file_path + "\\" + name + "_" + str(rg) + "_" + "long_term_and_events.xlsx"
                 elif run_lumped_post_processing:
                     file_path = swmm_simulation_file_path + "\\" + name + "_" + str(rg) + "_" + "lumped_long_term_and_events.xlsx"
+                # #Statistics
+                if run_statistics:
+                    with pd.ExcelWriter(file_path) as writer:
+                        monitor_location_index = -1
+                        for simulated_data_set, observed_data_set in zip(simulated_data_sets, observed_data_sets):
+                            monitor_location_index += 1
+                            monitor_location = observed_data_set.location_id
+                            link_name = str(simulated_data_set.link_name)
+                            print("Link_name:" + str(link_name))
+                            event_dicts = []
+                            #figure_data_review = CalibrationDataReview(plot_start_date, plot_stop_date,
+                            #                                           precipitation_gages, [observed_data_sets[monitor_location_index]],
+                            #                                           [simulated_data_sets[monitor_location_index]], title=plot_title[monitor_location_index])
+                            #figure_data_review.create_figure()
+                            #figure_data_review.write_to_pdf(pp)
+                            #figure_data_review.close()
+                            events_statistics_list = []
+                            for index, event in events.iterrows():
+                                if event[monitor_location] == "YES":
+                                    print("Calculating statistics for event:" + str(event.StartDate))
+                                    event_start_date = event.StartDate
+                                    event_stop_date = event.EndDate
+                                    simulated_peak_flow = simulated_data_set.peak_filtered_flow(event_start_date, event_stop_date)
+                                    observed_peak_flow = observed_data_set.peak_filtered_flow(event_start_date, event_stop_date)
+                                    simulated_volume = simulated_data_set.filtered_volume(event_start_date, event_stop_date)
+                                    observed_volume = observed_data_set.filtered_volume(event_start_date, event_stop_date)
+                                    try:
+                                        percent_difference_flow = round((simulated_peak_flow - observed_peak_flow)/observed_peak_flow * 100, 1)
+                                        percent_difference_volume = round((simulated_volume - observed_volume)/observed_volume * 100, 1)
+                                    except:
+                                        percent_difference_flow = None
+                                        percent_difference_volume = None
+                                    event_dict = {"Start_Date": event_start_date.strftime("%m/%d/%Y"),
+                                                  "Stop_Date": event_stop_date.strftime("%m/%d/%Y"),
+                                                  "Sim_Peak_Flow": simulated_peak_flow,
+                                                  "Obs_Peak_Flow": observed_peak_flow,
+                                                  "% Diff_Flow": percent_difference_flow,
+                                                  "Sim_Volume": simulated_volume,
+                                                  "Obs_Volume": observed_volume,
+                                                  "% Diff_Volume": percent_difference_volume}
+                                    event_dicts.append(event_dict)
+                            events_statistics = pd.DataFrame(event_dicts)
+                            events_statistics = events_statistics.set_index(events_statistics.index.rename('Events'))
+                            events_statistics.dropna()
 
-                with pd.ExcelWriter(file_path) as writer:
-                    monitor_location_index = -1
-                    for simulated_data_set, observed_data_set in zip(simulated_data_sets, observed_data_sets):
-                        monitor_location_index += 1
-                        monitor_location = observed_data_set.location_id
-                        link_name = simulated_data_set.link_name
-                        print("Link_name:" + link_name)
-                        event_dicts = []
-                        #figure_data_review = CalibrationDataReview(plot_start_date, plot_stop_date,
-                        #                                           precipitation_gages, [observed_data_sets[monitor_location_index]],
-                        #                                           [simulated_data_sets[monitor_location_index]], title=plot_title[monitor_location_index])
-                        #figure_data_review.create_figure()
-                        #figure_data_review.write_to_pdf(pp)
-                        #figure_data_review.close()
-                        events_statistics_list = []
-                        for index, event in events.iterrows():
-                            if event[monitor_location] == "YES":
-                                print("Calculating statistics for event:" + str(event.StartDate))
-                                event_start_date = event.StartDate
-                                event_stop_date = event.EndDate
-                                simulated_peak_flow = simulated_data_set.peak_filtered_flow(event_start_date, event_stop_date)
-                                observed_peak_flow = observed_data_set.peak_filtered_flow(event_start_date, event_stop_date)
-                                simulated_volume = simulated_data_set.filtered_volume(event_start_date, event_stop_date)
-                                observed_volume = observed_data_set.filtered_volume(event_start_date, event_stop_date)
-                                try:
-                                    percent_difference_flow = round((simulated_peak_flow - observed_peak_flow)/observed_peak_flow * 100, 1)
-                                    percent_difference_volume = round((simulated_volume - observed_volume)/observed_volume * 100, 1)
-                                except:
-                                    percent_difference_flow = None
-                                    percent_difference_volume = None
-                                event_dict = {"Start_Date": event_start_date.strftime("%m/%d/%Y"),
-                                              "Stop_Date": event_stop_date.strftime("%m/%d/%Y"),
-                                              "Sim_Peak_Flow": simulated_peak_flow,
-                                              "Obs_Peak_Flow": observed_peak_flow,
-                                              "% Diff_Flow": percent_difference_flow,
-                                              "Sim_Volume": simulated_volume,
-                                              "Obs_Volume": observed_volume,
-                                              "% Diff_Volume": percent_difference_volume}
-                                event_dicts.append(event_dict)
-                        events_statistics = pd.DataFrame(event_dicts)
-                        events_statistics = events_statistics.set_index(events_statistics.index.rename('Events'))
-                        events_statistics.dropna()
+                            print("writing long term and event statistics")
+                            simulated_data = simulated_data_sets[monitor_location_index].flow_data
+                            simulated_data = simulated_data.rename(columns={simulated_data.columns[0]: "Sim flow"})
+                            observed_data = observed_data_sets[monitor_location_index].filtered_flow_data[observed_data_sets[monitor_location_index].filtered_flow_data > 0]
+                            observed_data = observed_data.rename(columns={observed_data.columns[0]: "Obs flow"})
+                            long_term_statistics = simulated_data_sets[monitor_location_index].flow_data
 
-                        print("writing long term and event statistics")
-                        simulated_data = simulated_data_sets[monitor_location_index].flow_data
-                        simulated_data = simulated_data.rename(columns={simulated_data.columns[0]: "Sim flow"})
-                        observed_data = observed_data_sets[monitor_location_index].filtered_flow_data[observed_data_sets[monitor_location_index].filtered_flow_data > 0]
-                        observed_data = observed_data.rename(columns={observed_data.columns[0]: "Obs flow"})
-                        long_term_statistics = simulated_data_sets[monitor_location_index].flow_data
+                            simulated = long_term_statistics.copy(deep=True)
+                            long_term_statistics = simulated_data_sets[monitor_location_index].filter_data_based_on_data_from_another_source(simulated_data, observed_data)
 
-                        simulated = long_term_statistics.copy(deep=True)
-                        long_term_statistics = simulated_data_sets[monitor_location_index].filter_data_based_on_data_from_another_source(simulated_data, observed_data)
+                            simulated_data_sets[monitor_location_index].filtered_flow_data = long_term_statistics  # TODO clean this up
+                            long_term_statistics = long_term_statistics.join(observed_data)
+                            obs = long_term_statistics.copy(deep=True)
 
-                        simulated_data_sets[monitor_location_index].filtered_flow_data = long_term_statistics  # TODO clean this up
-                        long_term_statistics = long_term_statistics.join(observed_data)
-                        obs = long_term_statistics.copy(deep=True)
+                            flow = obs.copy(deep=True)
+                            volume = flow*5*60/43560
+                            #flow = flow.mean().T
+                            volume = volume.sum().T
+                            volume['% Diff'] = (volume[0] - volume[1])/volume[1] * 100
+                            percent_diff_labels_total = ['{0:.1f}%'.format(flt).replace('nan%','') for flt in [volume['% Diff']]]
+                            volume.to_excel(writer, sheet_name='Total_Vol_' + str(link_name), float_format="%0.2f", header=False)
+                            total_vol_bar_chart_plot = TotalVolumeFlowBarChart([volume["Obs flow"]],
+                                                                             [volume["Sim flow"]],
+                                                                             ["Total Volume"],
+                                                                             percent_difference_labels= percent_diff_labels_total,
+                                                                             title="Total Volume\n" + plot_titles[monitor_location_index]
+                                                                             )
+                            total_vol_bar_chart_plot.create_figure()
+                            total_vol_bar_chart_plot.write_to_pdf(pp)
+                            total_vol_bar_chart_plot.close()
 
-                        flow = obs.copy(deep=True)
-                        volume = flow*5*60/43560
-                        #flow = flow.mean().T
-                        volume = volume.sum().T
-                        volume['% Diff'] = (volume[0] - volume[1])/volume[1] * 100
-                        percent_diff_labels_total = ['{0:.1f}%'.format(flt).replace('nan%','') for flt in [volume['% Diff']]]
-                        volume.to_excel(writer, sheet_name='Total_Vol_' + link_name, float_format="%0.2f", header=False)
-                        total_vol_bar_chart_plot = TotalVolumeFlowBarChart([volume["Obs flow"]],
-                                                                         [volume["Sim flow"]],
-                                                                         ["Total Volume"],
-                                                                         percent_difference_labels= percent_diff_labels_total,
-                                                                         title="Total Volume\n" + plot_titles[monitor_location_index]
-                                                                         )
-                        total_vol_bar_chart_plot.create_figure()
-                        total_vol_bar_chart_plot.write_to_pdf(pp)
-                        total_vol_bar_chart_plot.close()
+                            # long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_water_year(simulated_data, observed_data)
+                            long_term_statistics = simulated_data_sets[
+                                monitor_location_index].compare_total_volume_data_per_water_year(simulated_data, observed_data)
+                            if long_term_statistics is not None:
+                                wy = long_term_statistics.copy(deep=True)
+                                wy['% Diff'] = (wy[wy.columns[0]] - wy[wy.columns[1]])/wy[wy.columns[1]] * 100
+                                percent_diff_labels_wy = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in
+                                                       wy['% Diff']]
+                                wy.to_excel(writer, sheet_name='Avg_WY_Vol_' + link_name, float_format="%0.2f")
+                                wy_flow_bar_chart_plot = TotalVolumeFlowBarChart(wy["Obs flow"].values,
+                                                                                    wy["Sim flow"].values,
+                                                                                    wy.index.values,
+                                                                                    percent_difference_labels=percent_diff_labels_wy,
+                                                                                    title="WY Volume\n" + plot_titles[monitor_location_index]
+                                                                                    )
+                                wy_flow_bar_chart_plot.create_figure()
+                                wy_flow_bar_chart_plot.write_to_pdf(pp)
+                                wy_flow_bar_chart_plot.close()
 
-                        # long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_water_year(simulated_data, observed_data)
-                        long_term_statistics = simulated_data_sets[
-                            monitor_location_index].compare_total_volume_data_per_water_year(simulated_data, observed_data)
-                        if long_term_statistics is not None:
-                            wy = long_term_statistics.copy(deep=True)
-                            wy['% Diff'] = (wy[wy.columns[0]] - wy[wy.columns[1]])/wy[wy.columns[1]] * 100
-                            percent_diff_labels_wy = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in
-                                                   wy['% Diff']]
-                            wy.to_excel(writer, sheet_name='Avg_WY_Vol_' + link_name, float_format="%0.2f")
-                            wy_flow_bar_chart_plot = TotalVolumeFlowBarChart(wy["Obs flow"].values,
-                                                                                wy["Sim flow"].values,
-                                                                                wy.index.values,
-                                                                                percent_difference_labels=percent_diff_labels_wy,
-                                                                                title="WY Volume\n" + plot_titles[monitor_location_index]
-                                                                                )
-                            wy_flow_bar_chart_plot.create_figure()
-                            wy_flow_bar_chart_plot.write_to_pdf(pp)
-                            wy_flow_bar_chart_plot.close()
+                            # long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_month(simulated_data, observed_data)
+                            long_term_statistics = simulated_data_sets[monitor_location_index].compare_total_volume_data_per_month(
+                                simulated_data, observed_data)
+                            monthly_avg = long_term_statistics.copy(deep=True)
 
-                        # long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_month(simulated_data, observed_data)
-                        long_term_statistics = simulated_data_sets[monitor_location_index].compare_total_volume_data_per_month(
-                            simulated_data, observed_data)
-                        monthly_avg = long_term_statistics.copy(deep=True)
+                            monthly_avg['% Diff'] = (monthly_avg[monthly_avg.columns[0]] - monthly_avg[monthly_avg.columns[1]])/monthly_avg[monthly_avg.columns[1]] * 100
+                            percent_diff_labels_monthly = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in
+                                                               monthly_avg['% Diff']]
 
-                        monthly_avg['% Diff'] = (monthly_avg[monthly_avg.columns[0]] - monthly_avg[monthly_avg.columns[1]])/monthly_avg[monthly_avg.columns[1]] * 100
-                        percent_diff_labels_monthly = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in
-                                                           monthly_avg['% Diff']]
+                            monthly = monthly_avg.copy(deep=True)
+                            if not monthly.empty: #TODO should this be obs
+                                monthly = monthly.groupby([monthly.index.month]).mean()
+                                monthly['% Diff'] = (monthly[monthly.columns[0]] - monthly[monthly.columns[1]])/monthly[monthly.columns[1]] * 100
+                                monthly.index.name = "Month"
+                                monthly.to_excel(writer, sheet_name='Avg_Mon_Vol_' + link_name, float_format="%0.2f")
+                                monthly_avg.to_excel(writer, sheet_name='Avg_Mon_Vol_By_Yr_' + link_name, float_format="%0.2f")
 
-                        monthly = monthly_avg.copy(deep=True)
-                        if not monthly.empty: #TODO should this be obs
-                            monthly = monthly.groupby([monthly.index.month]).mean()
-                            monthly['% Diff'] = (monthly[monthly.columns[0]] - monthly[monthly.columns[1]])/monthly[monthly.columns[1]] * 100
-                            monthly.index.name = "Month"
-                            monthly.to_excel(writer, sheet_name='Avg_Mon_Vol_' + link_name, float_format="%0.2f")
-                            monthly_avg.to_excel(writer, sheet_name='Avg_Mon_Vol_By_Yr_' + link_name, float_format="%0.2f")
+                                percent_diff_labels_avg_monthly = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in monthly['% Diff']]
+                                monthly_avg_vol_bar_chart_plot = TotalVolumeFlowBarChart(monthly["Obs flow"].values,
+                                                                                         monthly["Sim flow"].values,
+                                                                                         monthly.index.values,
+                                                                                         percent_difference_labels=percent_diff_labels_avg_monthly,
+                                                                                         title="Average Monthly Volume\n" + plot_titles[
+                                                                                             monitor_location_index]
+                                                                                         )
+                                monthly_avg_vol_bar_chart_plot.create_figure()
+                                monthly_avg_vol_bar_chart_plot.write_to_pdf(pp)
+                                monthly_avg_vol_bar_chart_plot.close()
 
-                            percent_diff_labels_avg_monthly = ['{0:.1f}%'.format(flt).replace('nan%', '') for flt in monthly['% Diff']]
-                            monthly_avg_vol_bar_chart_plot = TotalVolumeFlowBarChart(monthly["Obs flow"].values,
-                                                                                     monthly["Sim flow"].values,
-                                                                                     monthly.index.values,
-                                                                                     percent_difference_labels=percent_diff_labels_avg_monthly,
-                                                                                     title="Average Monthly Volume\n" + plot_titles[
-                                                                                         monitor_location_index]
-                                                                                     )
-                            monthly_avg_vol_bar_chart_plot.create_figure()
-                            monthly_avg_vol_bar_chart_plot.write_to_pdf(pp)
-                            monthly_avg_vol_bar_chart_plot.close()
+                                monthly_flow_bar_chart_plot = TotalVolumeFlowBarChart(monthly_avg["Obs flow"].values,
+                                                                                         monthly_avg["Sim flow"].values,
+                                                                                         monthly_avg.index.strftime(
+                                                                                             "%m-%y").values,
+                                                                                         percent_difference_labels=percent_diff_labels_monthly,
+                                                                                         title="Monthly Volume\n" + plot_titles[
+                                                                                             monitor_location_index]
+                                                                                         )
+                                monthly_flow_bar_chart_plot.create_figure()
+                                monthly_flow_bar_chart_plot.write_to_pdf(pp)
+                                monthly_flow_bar_chart_plot.close()
 
-                            monthly_flow_bar_chart_plot = TotalVolumeFlowBarChart(monthly_avg["Obs flow"].values,
-                                                                                     monthly_avg["Sim flow"].values,
-                                                                                     monthly_avg.index.strftime(
-                                                                                         "%m-%y").values,
-                                                                                     percent_difference_labels=percent_diff_labels_monthly,
-                                                                                     title="Monthly Volume\n" + plot_titles[
-                                                                                         monitor_location_index]
-                                                                                     )
-                            monthly_flow_bar_chart_plot.create_figure()
-                            monthly_flow_bar_chart_plot.write_to_pdf(pp)
-                            monthly_flow_bar_chart_plot.close()
+                            long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_day(simulated_data, observed_data)
+                            # long_term_statistics.to_excel(writer, sheet_name='Daily_AVG_FLOWS' + simulated_link_name)
 
-                        long_term_statistics = simulated_data_sets[monitor_location_index].compare_avg_data_per_day(simulated_data, observed_data)
-                        # long_term_statistics.to_excel(writer, sheet_name='Daily_AVG_FLOWS' + simulated_link_name)
+                            events_statistics.to_excel(writer, sheet_name='Events_' + link_name, float_format="%0.1f")
+                            try:
+                                obs.to_excel(writer, sheet_name="SimulatedAndObs_" + link_name)
+                                simulated.to_excel(writer, sheet_name="Simulated_" + link_name, float_format="%0.15f")
+                            except:
+                                print("Could not write 5 min flows to excel.")
+                            if not events_statistics.empty:
 
-                        events_statistics.to_excel(writer, sheet_name='Events_' + link_name, float_format="%0.1f")
-                        try:
-                            obs.to_excel(writer, sheet_name="SimulatedAndObs_" + link_name)
-                            simulated.to_excel(writer, sheet_name="Simulated_" + link_name, float_format="%0.15f")
-                        except:
-                            print("Could not write 5 min flows to excel.")
-                        if not events_statistics.empty:
-
-                            obs_peak_flow = events_statistics["Obs_Peak_Flow"].values
-                            sim_peak_flow = events_statistics["Sim_Peak_Flow"].values
-                            res_peak_flow = stats.linregress(obs_peak_flow, sim_peak_flow)
-                            obs_volume = events_statistics["Obs_Volume"].values
-                            sim_volume = events_statistics["Sim_Volume"].values
-                            res_volume = stats.linregress(obs_volume, sim_volume)
-                            peak_flow_scatter_plot = CalibrationPeakFlowDataReview(events_statistics["Obs_Peak_Flow"].values,
-                                                                                   events_statistics["Sim_Peak_Flow"].values,
-                                                                                   events_statistics["Obs_Volume"].values,
-                                                                                   events_statistics["Sim_Volume"].values,
-                                                                                   peak_flow_res=res_peak_flow,
-                                                                                   volume_res=res_volume,
-                                                                                   title=plot_titles[monitor_location_index])
-                            peak_flow_scatter_plot.create_figure()
-                            peak_flow_scatter_plot.write_to_pdf(pp)
-                            peak_flow_scatter_plot.close()
+                                obs_peak_flow = events_statistics["Obs_Peak_Flow"].values
+                                sim_peak_flow = events_statistics["Sim_Peak_Flow"].values
+                                res_peak_flow = stats.linregress(obs_peak_flow, sim_peak_flow)
+                                obs_volume = events_statistics["Obs_Volume"].values
+                                sim_volume = events_statistics["Sim_Volume"].values
+                                res_volume = stats.linregress(obs_volume, sim_volume)
+                                peak_flow_scatter_plot = CalibrationPeakFlowDataReview(events_statistics["Obs_Peak_Flow"].values,
+                                                                                       events_statistics["Sim_Peak_Flow"].values,
+                                                                                       events_statistics["Obs_Volume"].values,
+                                                                                       events_statistics["Sim_Volume"].values,
+                                                                                       peak_flow_res=res_peak_flow,
+                                                                                       volume_res=res_volume,
+                                                                                       title=plot_titles[monitor_location_index])
+                                peak_flow_scatter_plot.create_figure()
+                                peak_flow_scatter_plot.write_to_pdf(pp)
+                                peak_flow_scatter_plot.close()
+                # #End Statistics
 
                 for index, event in events.iterrows():
                     print("Plotting event:" + str(event.StartDate))
-                    try:
-                        for index, simulated_data in enumerate(simulated_data_sets):
-                            if event[observed_data_sets[index].location_id] == "YES":
-                                observed_data_sets_1 = [observed_data_sets[index]]
+                    for index1, simulated_data in enumerate(simulated_data_sets):
+                        try:
+                            if event[observed_data_sets[index1].location_id] == "YES":
+                                print("     " + plot_titles[index1])
+                                observed_data_sets_1 = [observed_data_sets[index1]]
                                 simulated_data_sets_1 = [simulated_data]
                                 event_start_date = event.StartDate
                                 event_stop_date = event.EndDate
@@ -630,13 +653,14 @@ for rg in rgs:
                                     max_flow = observed_peak_raw_flow
 
                                 if max_flow > 10:
-                                    max_flow = math.ceil(max_flow / 10) * 10
+                                    max_flow = math.ceil(max_flow / 10) * 10 + 10
                                 else:
-                                    max_flow = math.ceil(max_flow)
+                                    max_flow = math.ceil(max_flow) * 1.1
+                                title = plot_titles[index1] + "\n" + event_start_date.strftime("%#m/%#d/%#Y") + " - " + event_stop_date.strftime("%#m/%d/%Y")
                                 if not observed_data_sets_1[0].filtered_flow_data.loc[event_start_date: event_stop_date].empty:
                                     figure_data_review = CalibrationDataReview(event_start_date, event_stop_date,
                                                                                precipitation_gages, observed_data_sets_1,
-                                                                               simulated_data_sets_1, title=plot_titles[index],
+                                                                               simulated_data_sets_1, title=title,
                                                                                peak_flow=max_flow)
                                 else:
                                     simulated_data_dummy = copy.deepcopy(simulated_data_sets_1[0])
@@ -647,22 +671,25 @@ for rg in rgs:
                                     simulated_data_dummy.node_name = ""
                                     dummy_simulated_data_sets_1 = [simulated_data_dummy]
                                     max_flow = simulated_data_dummy.peak_flow(event_start_date, event_stop_date)
+                                    title = plot_titles[index1] + "\n" + event_start_date.strftime(
+                                        "%#m/%#d/%Y") + " - " + event_stop_date.strftime("%#m/%#d/%Y")
                                     figure_data_review = CalibrationDataReview(event_start_date, event_stop_date,
                                                                                precipitation_gages, None,
-                                                                               dummy_simulated_data_sets_1, title=plot_titles[index],
+                                                                               dummy_simulated_data_sets_1, title=title,
                                                                                peak_flow=max_flow)
                                 figure_data_review.create_figure()
                                 figure_data_review.write_to_pdf(pp)
                                 figure_data_review.close()
-                    except Exception:
-                        traceback_output = traceback.format_exc()
-                        print("Failed to create plot")
-                        print(traceback_output)
-                        print(plot_titles[index])
-                        print(event_start_date)
+                        except Exception:
+                            # TODO this fails if one gage is out of range make this more robust
+                            traceback_output = traceback.format_exc()
+                            print("Failed to create plot")
+                            print(traceback_output)
+                            print(plot_titles[index])
+                            print(event_start_date)
 
-                pp.close()
-    if run_lumped_post_processing:
+        pp.close()
+    if run_lumped_to_dss:
         data_io = BaseDataIo()
         os.chdir(swmm_simulation_file_path)
         basin_name = "Tryon"
@@ -670,8 +697,8 @@ for rg in rgs:
         dsn = 1010
         flow_df = hspf_data_io.read_lumped_model_flow_data(simulation_routed_flow_wdm_file_path, dsn)
         data_io.write_5_minute_filtered_flow_to_regular_dss(simulation_routed_flow_dss_file_path,
-                                                            dss_path,
-                                                            flow_df)
+                                                                dss_path,
+                                                                flow_df)
 
     if run_swmm_to_dss:
         data_io = BaseDataIo()

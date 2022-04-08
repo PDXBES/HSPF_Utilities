@@ -1518,15 +1518,24 @@ class HspfDataIo(object):
         run_hspf_swmm_model = simulation_and_post_processing.at[2, 'SWMM']
         run_lumped_model = simulation_and_post_processing.at[2, 'LUMPED']
         run_hspf_hru = simulation_and_post_processing.at[2, 'HRUOnly']
-        post_process_swmm_model = simulation_and_post_processing.at[3, 'SWMM']
-        post_process_lumped_model = simulation_and_post_processing.at[3, 'LUMPED']
 
-        include_all_links = simulation_and_post_processing.at[4, 'SWMM']
+        post_process_swmm_model_statistics = simulation_and_post_processing.at[3, 'SWMM']
+        post_process_lumped_model_statistics = simulation_and_post_processing.at[3, 'LUMPED']
+        post_process_swmm_model_events = simulation_and_post_processing.at[4, 'SWMM']
+        post_process_lumped_model_events = simulation_and_post_processing.at[4, 'LUMPED']
+
+
         write_swmm_to_dss = simulation_and_post_processing.at[5, 'SWMM']
-        routing_time_step = simulation_and_post_processing.at[6, 'SWMM']
+        write_lumped_to_dss = simulation_and_post_processing.at[5, 'LUMPED']
 
-        return run_lumped_model, run_hspf_swmm_model, run_hspf_hru, post_process_lumped_model, post_process_swmm_model,\
-               include_all_links, write_swmm_to_dss, routing_time_step,
+        include_all_links = simulation_and_post_processing.at[6, 'SWMM']
+        routing_time_step = simulation_and_post_processing.at[7, 'SWMM']
+
+        return run_lumped_model, run_hspf_swmm_model, run_hspf_hru, \
+               post_process_lumped_model_statistics, post_process_swmm_model_statistics,\
+               post_process_lumped_model_events, post_process_swmm_model_events, \
+               write_lumped_to_dss, write_swmm_to_dss,  \
+               include_all_links,  routing_time_step
 
     def read_simulation_name_and_description(self):
         read_simulation_name_and_description = pd.read_excel(self.input_file, sheet_name='SimulationNameAndDescription', header=0)

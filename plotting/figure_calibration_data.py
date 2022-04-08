@@ -14,6 +14,7 @@ register_matplotlib_converters()
 import matplotlib.style as mplstyle
 mplstyle.use('fast')
 
+
 class CalibrationDataReview(object):
     def __init__(self, begin, end, precipitation_gages, monitor_data_sets, simulated_data_sets,
                  scatter_plots=False, depth_plot=False, title="", peak_flow = None):
@@ -96,7 +97,6 @@ class CalibrationDataReview(object):
                 self.flow_plot.xaxis_visible()
             if self.peak_flow is not None:
                 self.flow_plot.axs.set_ylim(0, self.peak_flow)
-
 
         if self.depth_plot:
             self.depth_plot = DepthPlot(self.begin, self.end, ax_depth, self.monitor_data_sets, self.simulated_data_sets)

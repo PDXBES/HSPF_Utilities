@@ -24,7 +24,11 @@ class Data(object):
     def peak_flow(self, beg, end):
         beg = beg.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
-        peak_flow = np.float32(self.flow_data.loc[beg:end].max()[0])
+
+        # peak_flow = np.float32(self.flow_data.loc[beg:end].max()[0]) only works if date is in index
+
+        peak_flow = self.flow_data[(self.flow_data.index.get_level_values(0) >= beg) & (self.flow_data.index.get_level_values(0) <= end)].max()[0]
+
         if math.isnan(peak_flow):
             peak_flow = 0
         return peak_flow

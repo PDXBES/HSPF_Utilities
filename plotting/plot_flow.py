@@ -13,32 +13,29 @@ class FlowPlot(Plot):
         self.peak_flow_and_volume = AnchorTextPeakFlowAndVolume(self.axs, self.temp_monitors, self.simulated_data_locations)
 
     def create_plot(self):
+        if self.simulated_data_locations is not None:
+            for simulated_data in self.simulated_data_locations:
+                sim_data = simulated_data.flow_data[simulated_data.flow_data.columns[0]]
+                sim_name = str(simulated_data.link_name) + ' sim'
+                sim_dates = simulated_data.flow_data.index.values
+                line, = self.axs.plot(sim_dates, sim_data, '-', label=sim_name, linewidth=1, color='r')
+                self.plot_curves.append(line)
+
         if self.temp_monitors is not None:
             for temp_monitor in self.temp_monitors:
-                filtered_data = temp_monitor.filtered_flow_data[temp_monitor.filtered_flow_data.columns[0]]
-                filtered_name = temp_monitor.node_name + ' filtered'
-                filtered_dates = temp_monitor.filtered_flow_data.index.values
-                # mask = temp_monitor.create_filter_mask(temp_monitor.flow_data, temp_monitor.filtered_flow_data)
-                # filtered_dates = np.ma.masked_where(mask==False, temp_monitor.flow_data.index.values)
-                # filtered_data = np.ma.masked_where(mask==False, temp_monitor.flow_data[temp_monitor.flow_data.columns[0]])
-                line, = self.axs.plot(filtered_dates, filtered_data, '-', label=filtered_name, linewidth=1)
-                self.plot_curves.append(line)
 
                 raw_data = temp_monitor.flow_data[temp_monitor.flow_data.columns[0]]
                 raw_name = temp_monitor.node_name + ' raw'
                 raw_dates = temp_monitor.flow_data.index.values
-                line, = self.axs.plot(raw_dates, raw_data, '-', label=raw_name, linewidth=.2)
+                line, = self.axs.plot(raw_dates, raw_data, '-', label=raw_name, linewidth=.2, color='y')
                 self.plot_curves.append(line)
 
-#                self.add_upload_dates(temp_monitor) # TODO make optional
-
-        if self.simulated_data_locations is not None:
-            for simulated_data in self.simulated_data_locations:
-                sim_data = simulated_data.flow_data[simulated_data.flow_data.columns[0]]
-                sim_name = simulated_data.link_name + ' sim'
-                sim_dates = simulated_data.flow_data.index.values
-                line, = self.axs.plot(sim_dates, sim_data, '-', label=sim_name, linewidth=1)
+                filtered_data = temp_monitor.filtered_flow_data[temp_monitor.filtered_flow_data.columns[0]]
+                filtered_name = temp_monitor.node_name + ' filtered'
+                filtered_dates = temp_monitor.filtered_flow_data.index.values
+                line, = self.axs.plot(filtered_dates, filtered_data, '-', label=filtered_name, linewidth=.5, color='b')
                 self.plot_curves.append(line)
+
         self.add_legend()
         self.axs.set_ylabel(self.y_label)
         self.axs.set_xlim(self.begin_date, self.end_date)
