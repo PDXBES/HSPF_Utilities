@@ -305,7 +305,7 @@ class Hspf(object):
         try:
             self.node_outlets.sort(key=lambda outlet: outlet.name)
         except:
-            pass
+            pass #TODO remove this try and except block
 
     def calculate_areas_for_outlets(self):
         if self.subbasins and self.explicit_impervious_area_subbasins:

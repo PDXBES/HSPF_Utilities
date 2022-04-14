@@ -185,9 +185,9 @@ if run_hspf_swmm == "NO" and run_lumped == "NO" and run_hspf_hru == "NO" and \
     post_process_swmm_events == "NO" and post_process_lumped_events == "NO" and write_swmm_to_dss == "NO":
     print("No Operations Selected Program Exiting")
     sys.exit(0)
-
+# TODO feed back on dropped events
 if post_process_swmm_events or post_process_swmm_statistics:
-    events_swmm = events[events['StartDate']>=start_date_swmm]
+    events_swmm = events[events['StartDate'] >= start_date_swmm]
     events_swmm = events_swmm[events_swmm['EndDate'] <= stop_date_swmm]
 if post_process_lumped_events or post_process_lumped_statistics:
     events_lumped = events[events['StartDate'] >= start_date_lumped]
@@ -297,7 +297,11 @@ for rg in rgs:
         hspf.create_unique_outlets()
         subbasin_text = hspf_data_io.write_hspf_schematic_block_individual_subbasins_text(hspf, hspf.subbasins)
         subbasin_dataframe = hspf_data_io.write_individual_subbasins_to_dataframe(hspf, hspf.subbasins)
-        subbasin_dataframe.to_excel(subbasin_dataframe_output_file_path)
+        subbasin_soil_dataframe = hspf_data_io.write_individual_soils_subbasins_to_dataframe(hspf, hspf.subbasins)
+        with pd.ExcelWriter(subbasin_dataframe_output_file_path) as writer:
+#            volume.to_excel(writer, sheet_name='Total_Vol_' + str(link_name), float_format="%0.2f", header=False)
+            subbasin_dataframe.to_excel(writer, sheet_name="implnd_perlnd")
+            subbasin_soil_dataframe.to_excel(writer, sheet_name="soils")
 
         progressbar.finish()
 
@@ -365,7 +369,7 @@ for rg in rgs:
         print("Copy SWMM inp")
         progressbar = SimpleProgressBar()
         hspf_data_io.copy_swmm_inp(input_swmm_inp_file_path, simulation_swmm_inp_file_path, swmm_start_date, swmm_stop_date,
-                                   routing_time_step=routing_time_step_in_seconds,
+                                   routing_time_step_in_seconds=routing_time_step_in_seconds,
                                    all_links=all_links_in_swmm_output_file,
                                    links_to_report=simulated_link_names)
         if run_import_transects:

@@ -1,6 +1,7 @@
 import copy
 import math
 
+
 class Subbasin(object):
     def __init__(self, hspf, name):
         self.hspf = hspf
@@ -10,6 +11,7 @@ class Subbasin(object):
         self.implnds = copy.deepcopy(hspf.implnds)
         self.connectivity_tables = hspf.connectivity_table
         self.land_use = hspf.land_use
+        self.soil = hspf.soil
         self.connectivity = hspf.connectivity
         self.emgaats_area = 0
         self.total_area = 0
@@ -23,6 +25,8 @@ class Subbasin(object):
         self.surfaceflow_area_factor = 1
         self.interflow_area_factor = 1
         self.baseflow_area_factor = 1
+        self.soil_areas = dict(zip(self.soil.keys(), len(self.soil)*[0]))
+        pass
 
     def find_forest_code(self):
         for pervious_cover_code in self.hspf.hspf_perv_cover.keys():
@@ -37,8 +41,8 @@ class Subbasin(object):
     def code_to_implnd_perlnd_area_new(self, o_code, area, predeveloped=False, include_impervious=True):
         if area > 0:
             code = o_code
-            soil1_code = code - code % self.hspf.base_codes["Other"]
-            code = code - soil1_code
+            perlnd_group_code = code - code % self.hspf.base_codes["Other"]
+            code = code - perlnd_group_code
             soil_code = code - code % self.hspf.base_codes["Soils"]
             code = code - soil_code
             connectivity_code = code - code % self.hspf.base_codes["Connectivity"]
@@ -51,7 +55,9 @@ class Subbasin(object):
             code = code - perv_cover_code
             slope_code = code - code % self.hspf.base_codes["Slope"]
 
-            hspf_soil_id = self.hspf.soil[soil_code][0] + soil1_code/1000000
+            self.soil_areas[soil_code] += area
+
+            hspf_soil_id = self.hspf.soil[soil_code][0] + perlnd_group_code/1000000
             hspf_imp_cover_id = self.hspf.imp_cover[imp_cover_code][0]
             land_use = self.land_use[land_use_code]
             connectivity_table = self.connectivity[connectivity_code][0]

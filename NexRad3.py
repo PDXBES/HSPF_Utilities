@@ -146,8 +146,7 @@ def instantaneous_rainfall_rate_plot(pp, radar_file, begin, end, current_date,
 ########################################################################################################################
 
 mpl.pyplot.ioff()
-input_file_path = r"C:\Users\sggho\Desktop\NexRAD\Tryon\TryonAnnualPeaks.xlsx"
-print
+input_file_path = r"C:\Users\sggho\Desktop\NexRAD\CC\HSPFSWMMInputAllSoilsTryon.xlsx"
 events = pd.read_excel(input_file_path, sheet_name='Events', header=1)
 
 events = events[events.iloc[:, 2] == 'YES']
@@ -164,10 +163,10 @@ for event in events.itertuples():
     # rain_gage_h2_numbers = [160, 193, 121]
     # model_name = "Saltzman"
 
-    subbasins_input_gdb_folder_path = r"C:\Users\sggho\Documents\HSPFModels\Models\TryonMainStemSimple"
-    temporary_flow_monitor_location_id = 14211315
-    rain_gage_h2_numbers = [4, 10, 172]
-    model_name = "Tryon"
+    subbasins_input_gdb_folder_path = r"C:\Users\sggho\Documents\HSPFModels\Models\CCStorm_detailed_model_all_soils_existing_ii"
+    temporary_flow_monitor_location_id = 13837
+    rain_gage_h2_numbers = [161, 227]
+    model_name = "CC"
 
     hours_from_utc = 8
     bounds_buffer_percentage = 50
@@ -176,7 +175,7 @@ for event in events.itertuples():
     bounds_buffer = bounds_buffer_percentage/100
 
     #file paths
-    output_pdf_file_path = r"C:\Users\sggho\Desktop\NexRAD\\Tryon\\" + model_name + begin_date.strftime("%Y%m%d") + ".pdf"
+    output_pdf_file_path = r"C:\Users\sggho\Desktop\NexRAD\\CC\\" + model_name + begin_date.strftime("%Y%m%d") + ".pdf"
     subbasins_layer = "areas"
     subbasins_input_gdb = "EmgaatsModel.gdb"
     subbasins_input_gdb_file_path = subbasins_input_gdb_folder_path + "\\" + subbasins_input_gdb
@@ -249,9 +248,9 @@ for event in events.itertuples():
     max_filtered_flow = temporary_flow_monitor.filtered_flow_data.loc[begin_date: stop_date].max()[0]
     max_raw_flow = temporary_flow_monitor.flow_data[~temporary_flow_monitor.flow_data.index.duplicated(keep='first')].loc[begin_date: stop_date].max()[0]
     if max_filtered_flow >= max_raw_flow:
-        max_flow = max_filtered_flow - max_filtered_flow % 5 + 5
+        max_flow = max_filtered_flow - max_filtered_flow % 1 + 1
     else:
-        maxflow = max_raw_flow - max_raw_flow % 5 + 5
+        maxflow = max_raw_flow - max_raw_flow % 1 + 1
 
     # begin end integer time stamps in UTC
     timestamp_string_format = "%Y%m%d%H%M"

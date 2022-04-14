@@ -738,6 +738,20 @@ class HspfDataIo(object):
         subbasin_dataframe = pd.DataFrame(subbasin_perlnd_implnd_dicts) #.transpose()
         return subbasin_dataframe
 
+    def write_individual_soils_subbasins_to_dataframe(self, hspf, subbasins):
+        subbasin_soil_dicts = []
+        for subbasin in hspf.subbasins:
+            subbasin_soils_dict = {}
+            subbasin_soils_dict['NAME'] = subbasin.subbasin_name
+            subbasin_soils_dict['SURO'] = subbasin.outlet_surface_flow
+            subbasin_soils_dict['IFWO'] = subbasin.outlet_inter_flow
+            subbasin_soils_dict['AGWO'] = subbasin.outlet_base_flow
+            for key in subbasin.soil_areas.keys():
+                subbasin_soils_dict[str(key) + "_" + hspf.soil[key][1]] = subbasin.soil_areas[key]
+            subbasin_soil_dicts.append(subbasin_soils_dict)
+            subbasin_dataframe = pd.DataFrame(subbasin_soil_dicts)
+        return subbasin_dataframe
+
     def write_hspf_schematic_block_individual_subbasins_text(self, hspf, subbasins):
         header = "SCHEMATIC\n" + \
                  "<-Source->                  <--Area-->     <-Target->   MBLK ***\n" + \
@@ -1074,8 +1088,15 @@ class HspfDataIo(object):
         subprocess.check_call(arguments, cwd=working_directory, shell=True)
 
     def copy_swmm_inp(self, input_swmm_inp_file_path, simulation_swmm_inp_file_path, start_date, stop_date,
-                      reporting_time_step='00:05:00', routing_time_step='00:05:00', links_to_report=None, all_links=False, all_nodes=False,
+                      reporting_time_step='00:05:00', routing_time_step_in_seconds=5, links_to_report=None, all_links=False, all_nodes=False,
                       dynamic_wave = True):
+
+        routing_hours = int((routing_time_step_in_seconds - (routing_time_step_in_seconds % 3600))/3600)
+        routing_minutes = int(((routing_time_step_in_seconds - routing_hours*3600) - (routing_time_step_in_seconds - routing_hours*3600) % 60)/60)
+        routing_seconds = int(routing_time_step_in_seconds - routing_hours * 3600 - routing_minutes * 60)
+
+        routing_time_step_string = "{:02d}:{:02d}:{:02d} ".format(routing_hours, routing_minutes, routing_seconds)
+
         #TODO fix routing time step
         with open(input_swmm_inp_file_path, 'r') as input_swmm_inp:
             inp = ""
@@ -1087,44 +1108,44 @@ class HspfDataIo(object):
                     routing = "KINWAVE"
                 line = input_swmm_inp.readline()
                 if line[0:9] == "[OPTIONS]":
-                    inp += "[OPTIONS]\n" +\
-                    ";;Option Value\n"  +\
-                    "FLOW_UNITS CFS\n"  +\
-                    "INFILTRATION GREEN_AMPT\n" +\
-                    "FLOW_ROUTING " + routing + "\n"   +\
-                    "LINK_OFFSETS ELEVATION\n" +\
-                    "MIN_SLOPE 0\n"  +\
-                    "ALLOW_PONDING YES\n"  +\
-                    "SKIP_STEADY_STATE NO\n" +\
-                    "\n"  +\
-                    "IGNORE_RAINFALL YES\n"  +\
-                    "START_DATE " + start_date + "\n" +\
-                    "START_TIME 00:00:00\n"   +\
+                    inp += "[OPTIONS]\n" + \
+                           ";;Option Value\n" + \
+                           "FLOW_UNITS CFS\n" + \
+                           "INFILTRATION GREEN_AMPT\n" + \
+                           "FLOW_ROUTING " + routing + "\n" + \
+                           "LINK_OFFSETS ELEVATION\n" + \
+                           "MIN_SLOPE 0\n" + \
+                           "ALLOW_PONDING YES\n" + \
+                           "SKIP_STEADY_STATE NO\n" + \
+                           "\n" + \
+                           "IGNORE_RAINFALL YES\n" + \
+                           "START_DATE " + start_date + "\n" + \
+                           "START_TIME 00:00:00\n" +\
                     "REPORT_START_DATE " + start_date + "\n" +\
                     "REPORT_START_TIME 00:00:00\n" +\
                     "END_DATE " + stop_date + "\n" +\
-                    "END_TIME 00:00:00\n"   +\
-                    "SWEEP_START 01/01\n"  +\
-                    "SWEEP_END 12/31\n"   +\
+                    "END_TIME 00:00:00\n" +\
+                    "SWEEP_START 01/01\n" +\
+                    "SWEEP_END 12/31\n" +\
                     "DRY_DAYS 0\n" +\
                     "REPORT_STEP " + reporting_time_step + "\n" +\
                     "WET_STEP 00:00:30\n" +\
                     "DRY_STEP 00:00:30\n" +\
-                    "ROUTING_STEP " + reporting_time_step + "\n" +\
-                    "\n"        +\
-                    "INERTIAL_DAMPING PARTIAL\n"    +\
-                    "NORMAL_FLOW_LIMITED BOTH\n"  +\
-                    "FORCE_MAIN_EQUATION H-W\n"  +\
-                    "VARIABLE_STEP 0.75\n"  +\
-                    "LENGTHENING_STEP 0\n" +\
-                    "MIN_SURFAREA 12.557\n"+\
-                    "MAX_TRIALS 8\n" +\
-                    "HEAD_TOLERANCE 0.005\n" +\
-                    "SYS_FLOW_TOL 5\n" +\
-                    "LAT_FLOW_TOL 5\n" +\
-                    "MINIMUM_STEP 0.5\n" +\
-                    "THREADS 6\n" +\
-                    "\n"
+                    "ROUTING_STEP " + routing_time_step_string + "\n" +\
+                    "\n" + \
+                           "INERTIAL_DAMPING PARTIAL\n" + \
+                           "NORMAL_FLOW_LIMITED BOTH\n" + \
+                           "FORCE_MAIN_EQUATION H-W\n" + \
+                           "VARIABLE_STEP 0.75\n" + \
+                           "LENGTHENING_STEP 0\n" + \
+                           "MIN_SURFAREA 12.557\n" + \
+                           "MAX_TRIALS 8\n" + \
+                           "HEAD_TOLERANCE 0.005\n" + \
+                           "SYS_FLOW_TOL 5\n" + \
+                           "LAT_FLOW_TOL 5\n" + \
+                           "MINIMUM_STEP 0.5\n" + \
+                           "THREADS 6\n" + \
+                           "\n"
                     while line is not '':
                         line = input_swmm_inp.readline()
                         if line[0] == "[":
@@ -1135,12 +1156,12 @@ class HspfDataIo(object):
                             link_report_string = ""
                             for link_number, link in enumerate(links_to_report):
                                 if link_number == 0:
-                                    link_report_string += "LINKS " + link
+                                    link_report_string += "LINKS " + str(link)
                                 elif (link_number + 1) % 4 == 0 and link_number > 0:
                                     link_report_string += "\n"
-                                    link_report_string += "LINKS " + link
+                                    link_report_string += "LINKS " + str(link)
                                 else:
-                                    link_report_string += " " + link
+                                    link_report_string += " " + str(link)
                             link_report_string += "\n"
 
                         inp += "[REPORT]\n" + \
