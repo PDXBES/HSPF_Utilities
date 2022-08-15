@@ -17,7 +17,7 @@ print("# to start a simulation.                                              #")
 print("#######################################################################")
 
 app = QApplication(sys.argv)
-ex = App()
+ex = App("INPUTFILE")
 input_file = ex.fileName
 predevelopment = False
 
@@ -142,7 +142,9 @@ for storm in storms.keys():
         # copy swmm inp file
         print("Copy SWMM inp")
         progressbar = SimpleProgressBar()
-        hspf_data_io.copy_swmm_inp(input_swmm_inp_file_path, simulation_swmm_inp_file_path, start_date, stop_date, '00:00:30')
+        hspf_data_io.copy_swmm_inp(input_swmm_inp_file_path, simulation_swmm_inp_file_path, start_date, stop_date, '00:00:30',
+                                   all_links=True,
+                                   all_nodes=True)
         if run_import_transects:
             print("Importing Transects")
             TransectsMain([emgaats_model_folder, simulation_swmm_inp_file_path])

@@ -41,6 +41,19 @@ class HspfDataIo(object):
         header = header + "Node             Year Mon Day Hr  Min Sec FLOW\n"
         return header
 
+    def write_interface_file_header(self,  hspf: Hspf):
+        number_of_nodes = len(hspf.node_outlets)
+        header = "SWMM5 Interface File\n"
+        header = header + "Unrouted HSPF Flows\n"
+        header = header + str(hspf.output_timestep_in_minutes * self.conversion_constants.seconds_in_minute) + "\n"
+        header = header + "1\n"
+        header = header + "FLOW CFS\n"
+        header = header + str(number_of_nodes) + "\n"
+        for node in hspf.node_outlets:
+            header = header + node.name + "\n"
+        header = header + "Node             Year Mon Day Hr  Min Sec FLOW\n"
+        return header
+
     def write_interface_file(self, hspf: Hspf, interface_file):
         reorder_df = hspf.create_flow_df_for_interface_file()
 
@@ -50,6 +63,7 @@ class HspfDataIo(object):
             f.write(header)
             print("Total Volume Rounded:" + " " + str(reorder_df['Flow'].round(15).sum() * hspf.input_timestep_in_minutes * 60 /43560))
             print("Total Volume Flow:" + " " + str(reorder_df['Flow'].sum() * hspf.input_timestep_in_minutes * 60 /43560))
+            #TODO does swmm understand scientific notation does 8 versus 15 decemal places matter
             fmt = ''.join(['%6s %19s %.15f\n'] * len(reorder_df.index))
             data = fmt % tuple(flattened_reorder_df)
             f.write(data)
@@ -108,7 +122,7 @@ class HspfDataIo(object):
             text = self.write_hspf_schematic_block_text(hspf, subbasins)
             perlnd_implnd_file.write(text)
 
-    def write_hspf_hru_uci_to_file(self, hspf, hspf_uci_file, description, rg, start_date, stop_date, rg_multiplier, evap_multiplier):
+    def write_hspf_hru_uci_to_file(self, hspf, hspf_uci_file, description, rg, start_date, stop_date, rg_multiplier, evap_dsn, evap_multiplier):
         hru = True
         with open(hspf_uci_file, 'w') as uci_file:
             text = \
@@ -120,13 +134,13 @@ class HspfDataIo(object):
                 self.write_hspf_perlnd_block_text(hspf) + "\n" + \
                 self.write_hspf_implnd_block_text(hspf) + "\n" + \
                 self.write_hspf_hru_schematic_block_text(hspf) + "\n" + \
-                self.write_hspf_ext_sources_as_text(rg, rg_multiplier, evap_multiplier, hru) + "\n" + \
+                self.write_hspf_ext_sources_as_text_multiple_rgs(rg, rg_multiplier, evap_dsn, evap_multiplier, hru) + "\n" + \
                 self.write_hspf_hru_ext_targets_as_text(hspf) + "\n" + \
                 self.write_hspf_mass_link_as_text() + \
                 "END RUN\n"
             uci_file.write(text)
 
-    def write_hspf_design_storm_hru_uci_to_file(self, hspf, hspf_uci_file, description, storm, start_date, stop_date, rg_multiplier, evap_multiplier, predevelopment=False):
+    def write_hspf_design_storm_hru_uci_to_file(self, hspf, hspf_uci_file, description, storm, start_date, stop_date, rg_multiplier, evap, evap_multiplier, predevelopment=False):
         hru = True
         with open(hspf_uci_file, 'w') as uci_file:
             if predevelopment:
@@ -156,13 +170,14 @@ class HspfDataIo(object):
                 self.write_hspf_perlnd_block_text(hspf) + "\n" + \
                 self.write_hspf_implnd_block_text(hspf) + "\n" + \
                 self.write_hspf_hru_schematic_block_text(hspf) + "\n" + \
-                self.write_hspf_ext_sources_as_text(storms[storm], rg_multiplier, evap_multiplier, hru) + "\n" + \
+                self.write_hspf_ext_sources_as_text(storms[storm], rg_multiplier, evap, evap_multiplier, hru) + "\n" + \
                 self.write_hspf_hru_ext_targets_as_text(hspf) + "\n" + \
                 self.write_hspf_mass_link_as_text() + \
                 "END RUN\n"
             uci_file.write(text)
 
-    def write_hspf_uci_to_file(self, hspf, hspf_uci_file, name, description, rg, start_date, stop_date, rg_multiplier, evap_multiplier):
+
+    def write_hspf_uci_to_file(self, hspf, hspf_uci_file, name, description, rg, start_date, stop_date, rg_multiplier,evap, evap_multiplier):
         hru = False
         with open(hspf_uci_file, 'w') as uci_file:
             text = \
@@ -177,7 +192,7 @@ class HspfDataIo(object):
                 self.write_hspf_rchres_block_text() + "\n" + \
                 self.write_hspf_ftable_block_text(hspf) + "\n" +\
                 self.write_hspf_schematic_block_text(hspf, hspf.subbasins + hspf.explicit_impervious_area_subbasins) + "\n" + \
-                self.write_hspf_ext_sources_as_text(rg, rg_multiplier, evap_multiplier, hru) + "\n" + \
+                self.write_hspf_ext_sources_as_text(rg, rg_multiplier, evap, evap_multiplier, hru) + "\n" + \
                 self.write_hspf_ext_targets_as_text() + "\n" + \
                 self.write_hspf_mass_link_as_text() + \
                 "END RUN\n"
@@ -317,7 +332,7 @@ class HspfDataIo(object):
         implnd_copy_string = ""
         for implnd in hspf.implnds:
             implnd_string += "{:6s}IMPLND{:5s}{:3d}\n".format(' ', ' ', implnd.implnd_id)
-            implnd_copy_string += "{:6s}COPY{:7s}{:3d}\n".format(' ', ' ', implnd.implnd_id + 900)
+            implnd_copy_string += "{:6s}COPY{:7s}{:3d}\n".format(' ', ' ', implnd.implnd_id + 500)
 
         rchres_string = "{:6s}RCHRES{:5s}{:3d}\n".format(' ', ' ', 1)
 
@@ -577,7 +592,9 @@ class HspfDataIo(object):
         text = header + state + footer
         return text
 
-    def write_hspf_ext_sources_as_text(self, rg, rg_multiplier, evap_multiplier, hru):
+    def write_hspf_ext_sources_as_text(self, rg, rg_multiplier, evap, evap_multiplier, hru):
+        evap = 2
+        # TODO EVAP DSN should not be hardwired
         header = \
         "EXT SOURCES\n"+\
         "<-Volume-> <Member> SsysSgap<--Mult-->Tran <-Target vols> <-Grp> <-Member->  ***\n"+\
@@ -586,8 +603,112 @@ class HspfDataIo(object):
         sources = \
         "WDM1  " + "{:4d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1 999 EXTNL  PREC\n" +\
         "WDM1  " + "{:4d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1 999 EXTNL  PREC\n" +\
-        "WDM1     2 EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
-        "WDM1     2 EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+
+        precip_to_dss = \
+        "WDM1   " + "{:3d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          COPY    15     INPUT  MEAN   1 1\n\n"
+
+        obs_flow_to_dss = \
+        "WDM3   " + "{:3d}".format(1) + " FLOW     ENGL    " + "{:4.3f}".format(1) + "          COPY    16     INPUT  MEAN   1 1\n\n"
+
+        footer = "END EXT SOURCES\n"
+
+        if hru:
+            text = header + sources + footer
+        else:
+            text = header + sources + precip_to_dss + obs_flow_to_dss + footer
+        return text
+
+    def write_hspf_ext_sources_as_text_multiple_rgs (self, rg, rg_multiplier, evap, evap_multiplier, hru):
+        evap = 2
+        # TODO EVAP DSN should not be hardwired
+        header = \
+        "EXT SOURCES\n"+\
+        "<-Volume-> <Member> SsysSgap<--Mult-->Tran <-Target vols> <-Grp> <-Member->  ***\n"+\
+        "<Name>   # <Name> # tem strg<-factor->strg <Name>   #   #        <Name> # #  ***\n"
+
+        # sources = \
+        # "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+
+        # sources = \
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+
+        sources = \
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+
+        # sources = \
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+        #
+        # sources = \
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+
+        # sources = \
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(234) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
 
         precip_to_dss = \
         "WDM1   " + "{:3d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          COPY    15     INPUT  MEAN   1 1\n\n"
@@ -670,7 +791,7 @@ class HspfDataIo(object):
         implnd_suro = "***SURO\n"
         for implnd in hspf.implnds:
             dsn_suro = implnd.implnd_id + hspf.implnd_surface_flow_base_dsn
-            implnd_copy_number = implnd.implnd_id + 900 #TODO should not be hardwired
+            implnd_copy_number = implnd.implnd_id + 500 #TODO should not be hardwired
             implnd_suro += "COPY   {:3d} OUTPUT MEAN   1 1 {:8g}{:>10s} {:5d} FLOW     ENGL      REPL\n".format(
                                                                                                implnd_copy_number,
                                                                                                145.2,
@@ -715,7 +836,7 @@ class HspfDataIo(object):
             implnd_string += "IMPLND {:3d}{:18s}{:10.3f}     COPY   {:3d}{:4s}{:3d}\n".format(implnd_id,
                                                                                            ' ',
                                                                                               hspf.hru_area_in_acres,
-                                                                                              implnd_id + 900, #TODO should not be hardwired
+                                                                                              implnd_id + 500, #TODO should not be hardwired
                                                                                            ' ',
                                                                                               self.implnd_suro_to_copy_masslink)
 
@@ -860,13 +981,13 @@ class HspfDataIo(object):
             if total_perlnd_area > 0:
                 perlnd_suro_string += "PERLND {:3d}{:18s}{:10f}     RCHRES {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                ' ',
-                                                                                               total_perlnd_area,
+                                                                                               total_perlnd_area * subbasin.surfaceflow_area_factor,
                                                                                                1,
                                                                                                ' ',
                                                                                                self.perlnd_suro_to_rchres_masslink)
                 perlnd_suro_copy += "PERLND {:3d}{:18s}{:10.3f}     COPY   {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                ' ',
-                                                                                               total_perlnd_area,
+                                                                                               total_perlnd_area * subbasin.surfaceflow_area_factor,
                                                                                                11,
                                                                                                ' ',
                                                                                                self.perlnd_suro_to_copy_masslink)
@@ -880,13 +1001,13 @@ class HspfDataIo(object):
             if total_perlnd_area > 0:
                 perlnd_ifwo_string += "PERLND {:3d}{:18s}{:10f}     RCHRES {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                ' ',
-                                                                                               total_perlnd_area,
+                                                                                               total_perlnd_area * subbasin.interflow_area_factor,
                                                                                                1,
                                                                                                ' ',
                                                                                                self.perlnd_ifwo_to_rchres_masslink)
                 perlnd_ifwo_copy += "PERLND {:3d}{:18s}{:10.3f}     COPY   {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                        ' ',
-                                                                                                       total_perlnd_area,
+                                                                                                       total_perlnd_area * subbasin.interflow_area_factor,
                                                                                                        12,
                                                                                                        ' ',
                                                                                                        self.perlnd_ifwo_to_copy_masslink)
@@ -900,14 +1021,14 @@ class HspfDataIo(object):
             if total_perlnd_area > 0:
                 perlnd_agwo_string += "PERLND {:3d}{:18s}{:10f}     RCHRES {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                ' ',
-                                                                                               total_perlnd_area,
+                                                                                               total_perlnd_area * subbasin.baseflow_area_factor,
                                                                                                1,
                                                                                                ' ',
 
                                                                                            self.perlnd_agwo_to_rchres_masslink)
                 perlnd_agwo_copy += "PERLND {:3d}{:18s}{:10.3f}     COPY   {:3d}{:4s}{:3d}\n".format(perlnd_id,
                                                                                                        ' ',
-                                                                                                       total_perlnd_area,
+                                                                                                       total_perlnd_area  * subbasin.baseflow_area_factor,
                                                                                                        13,
                                                                                                        ' ',
                                                                                                        self.perlnd_agwo_to_copy_masslink)
@@ -922,13 +1043,13 @@ class HspfDataIo(object):
             if total_implnd_area > 0:
                 implnd_string += "IMPLND {:3d}{:18s}{:10f}     RCHRES {:3d}{:4s}{:3d}\n".format(implnd_id,
                                                                                                ' ',
-                                                                                               total_implnd_area,
+                                                                                               total_implnd_area * subbasin.surfaceflow_area_factor,
                                                                                                1,
                                                                                                ' ',
                                                                                                self.implnd_suro_to_rchres_masslink)
                 implnd_suro_copy += "IMPLND {:3d}{:18s}{:10.3f}     COPY   {:3d}{:4s}{:3d}\n".format(implnd_id,
                                                                                                    ' ',
-                                                                                                   total_implnd_area,
+                                                                                                   total_implnd_area * subbasin.surfaceflow_area_factor,
                                                                                                    14,
                                                                                                    ' ',
                                                                                                    self.implnd_suro_to_copy_masslink)
@@ -1097,7 +1218,6 @@ class HspfDataIo(object):
 
         routing_time_step_string = "{:02d}:{:02d}:{:02d} ".format(routing_hours, routing_minutes, routing_seconds)
 
-        #TODO fix routing time step
         with open(input_swmm_inp_file_path, 'r') as input_swmm_inp:
             inp = ""
             line = " "

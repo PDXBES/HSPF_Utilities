@@ -5,11 +5,16 @@ import fiona
 import os
 import shapely
 from matplotlib import pyplot as plt
+from PyQt5.QtWidgets import QApplication
+from common.file_dialog import App
+import sys
 
 print(os.environ['PROJ_LIB'])
+app = QApplication(sys.argv)
+ex = App("EMGAATSGDB")
+input_gdb = ex.model_file_path
+model_directory = os.path.dirname(input_gdb)
 
-model_directory = r"\\BESFile1\ASM_Projects\E11098_Council_Crest\model\ModelsUpdatedFieldWork\IIEstimate"
-input_gdb = model_directory + "\\EmgaatsModel.gdb"
 sim_directory = model_directory + "\\sim"
 hspf_directory = model_directory + "\\sim\\Hspf"
 swmm_directory = model_directory + "\\sim\\SWMM"
@@ -48,7 +53,9 @@ bldg_prkg_strt_areas = areas[areas['area_type'].isin(['BLDG', 'PRKG', 'STRT'])]
 
 # explict areas
 explicit_areas = bldg_prkg_strt_areas[bldg_prkg_strt_areas.area_id.isin(unique_storm_directors_area_ids)]
-explicit_areas.to_file(overlay_gpk, layer='explicit_areas', driver="GPKG")
+if not explicit_areas.empty:
+    explicit_areas.to_file(overlay_gpk, layer='explicit_areas', driver="GPKG")
+
 # subtract bldg strt parking areas from lumped areas
 if not lumped_areas.empty and not explicit_areas.empty:
     cut = gpd.GeoDataFrame(geometry=gpd.GeoSeries(shapely.ops.unary_union(explicit_areas.geometry)), crs=explicit_areas.crs)
@@ -84,9 +91,15 @@ stats.to_csv(overlay_file)
 #TODO suro ifwo agwo areas multiplied by total area cut/total are original
 
 if not lumped_areas.empty:
-    storm_directors_lumped_areas_no_node_names = storm_directors.merge(lumped_areas, how='left', on='area_id', suffixes=["", "_lumped_area"]).dropna(subset=['area_name']).reset_index()
-    storm_directors_lumped_areas = storm_directors_lumped_areas_no_node_names.merge(nodes, how='left', left_on='to_node_id',right_on='node_id')
-    storm_directors_lumped_areas_agwo = storm_directors_lumped_areas.director_code.isin(['HAG', 'HALL'])
+    storm_directors_lumped_areas_no_node_names = storm_directors.merge(lumped_areas, how='left', on='area_id', suffixes=["", "_lumped_areas"]).dropna(subset=['area_name']).reset_index()
+    storm_directors_lumped_areas = storm_directors_lumped_areas_no_node_names.merge(nodes, how='left', left_on='to_node_id',right_on='node_id', suffixes=['','_nodes'])
+
+    storm_directors_lumped_areas = storm_directors_lumped_areas[['area_name', 'director_code', 'node_name', 'area_sqft', 'area_sqft_lumped_areas']]
+
+    unique_area_name_node_name_combinations = storm_directors_lumped_areas.groupby(['area_name', 'node_name']).first().reset_index()[['area_name', 'node_name', 'area_sqft_lumped_areas']]
+    unique_area_name_node_name_combinations = unique_area_name_node_name_combinations.rename(columns={'area_sqft_lumped_areas': 'area_sqft'})
+
+    storm_directors_lumped_areas_agwo = storm_directors_lumped_areas.director_code.isin(['HAG', 'HAL'])
     storm_directors_lumped_areas_ifwo = storm_directors_lumped_areas.director_code.isin(['HIF', 'HSI', 'HAL'])
     storm_directors_lumped_areas_suro = storm_directors_lumped_areas.director_code.isin(['HSU', 'HSI', 'HAL'])
     storm_directors_lumped_areas_agwo_df = pd.DataFrame(storm_directors_lumped_areas[storm_directors_lumped_areas_agwo].groupby(['area_name', 'node_name'])['area_sqft'].sum())
@@ -95,27 +108,22 @@ if not lumped_areas.empty:
     storm_directors_lumped_areas_agwo_df.reset_index(inplace=True)
     storm_directors_lumped_areas_ifwo_df.reset_index(inplace=True)
     storm_directors_lumped_areas_suro_df.reset_index(inplace=True)
-    lumped_areas_with_suro = lumped_areas.merge(storm_directors_lumped_areas_suro_df, how='left', on= 'area_name', suffixes=["", "_suro"])
-    lumped_areas_with_suro_ifwo = lumped_areas_with_suro.merge(storm_directors_lumped_areas_ifwo_df, how='left', on='area_name',
+
+    unique_area_name_node_name_combinations_with_suro = unique_area_name_node_name_combinations.merge(storm_directors_lumped_areas_suro_df, how='left', on=['area_name', 'node_name'], suffixes=["", "_suro"])
+    unique_area_name_node_name_combinations_with_suro_ifwo = unique_area_name_node_name_combinations_with_suro.merge(storm_directors_lumped_areas_ifwo_df, how='left',  on=['area_name', 'node_name'],
                                                 suffixes=["", "_ifwo"])
-    lumped_areas_with_suro_ifwo_agwo = lumped_areas_with_suro_ifwo.merge(storm_directors_lumped_areas_agwo_df, how='left', on='area_name',
+    unique_area_name_node_name_combinations_with_suro_ifwo_agwo = unique_area_name_node_name_combinations_with_suro_ifwo.merge(storm_directors_lumped_areas_agwo_df, how='left',  on=['area_name', 'node_name'],
                                                 suffixes=["", "_agwo"])
 
-    final_lumped_areas = lumped_areas_with_suro_ifwo_agwo[['area_name', 'node_name', 'area_sqft', 'area_sqft_suro', 'area_sqft_ifwo', 'node_name_ifwo', 'area_sqft_agwo', 'node_name_agwo']]
-    final_lumped_areas['node_name'].fillna(final_lumped_areas['node_name_ifwo'], inplace=True)
-    final_lumped_areas['node_name'].fillna(final_lumped_areas['node_name_agwo'], inplace=True)
-    final_lumped_areas['area_sqft_suro'].fillna(0, inplace=True)
-    final_lumped_areas['area_sqft_ifwo'].fillna(0, inplace=True)
-    final_lumped_areas['area_sqft_agwo'].fillna(0, inplace=True)
-    final_lumped_areas = final_lumped_areas[['area_name', 'node_name', 'area_sqft', 'area_sqft_suro', 'area_sqft_ifwo', 'area_sqft_agwo']]
+    lumped_areas_with_suro_ifwo_agwo = unique_area_name_node_name_combinations_with_suro_ifwo_agwo[['area_name', 'node_name', 'area_sqft', 'area_sqft_suro' , 'area_sqft_ifwo', 'area_sqft_agwo']].dropna(how='all', subset=['area_sqft_suro' , 'area_sqft_ifwo', 'area_sqft_agwo']).sort_values(by=['area_name', 'area_sqft_suro'])
+    final_lumped_areas = lumped_areas_with_suro_ifwo_agwo.fillna(0)
     final_lumped_areas = final_lumped_areas.rename(columns={'area_name': 'AreaName', 'node_name': 'NodeName', 'area_sqft': 'TotalArea', 'area_sqft_suro': 'SuroArea', 'area_sqft_ifwo': 'IfwoArea', 'area_sqft_agwo': 'AgwoArea'})
     final_lumped_areas.to_csv(lumped_areas_file, index=False)
-    print('stop')
     pass
 
 if not explicit_areas.empty:
     storm_directors_explicit_areas = storm_directors.merge(explicit_areas, how='left', on='area_id', suffixes=["", "_explicit_area"]).dropna(subset=['area_name']).reset_index()
-    storm_directors_explicit_areas_agwo = storm_directors_explicit_areas.director_code.isin(['HAG', 'HALL'])
+    storm_directors_explicit_areas_agwo = storm_directors_explicit_areas.director_code.isin(['HAG', 'HAL'])
     storm_directors_explicit_areas_ifwo = storm_directors_explicit_areas.director_code.isin(['HIF', 'HSI', 'HAL'])
     storm_directors_explicit_areas_suro = storm_directors_explicit_areas.director_code.isin(['HSU', 'HSI', 'HAL'])
     storm_directors_explicit_areas_emgaats = storm_directors_explicit_areas.director_code.isin(['DSI', 'CON', 'DSV', 'DRY', 'ECO', 'RNG'])
@@ -161,7 +169,7 @@ if not explicit_areas.empty:
                                        "eco_area_sqft": 0,
                                        "rng_area_sqft": 0,
                                        }
-        if explicit_stormwater_director_data.director_code not in (['HAG', 'HALL', 'HIF', 'HSI', 'HSU', 'SEP']):
+        if explicit_stormwater_director_data.director_code not in (['HAG', 'HAL', 'HIF', 'HSI', 'HSU', 'SEP']):
             if explicit_stormwater_director_data.director_code in ("CON", "DSI"):
                 explicit_stormwater_director["suro_outlet"] = explicit_stormwater_director_data.emgaats_outlet
                 explicit_stormwater_director["ifwo_outlet"] = explicit_stormwater_director_data.emgaats_outlet

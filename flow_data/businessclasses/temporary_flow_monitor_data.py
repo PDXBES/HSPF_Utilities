@@ -75,7 +75,8 @@ class TemporaryFlowMonitorData(Data):
         if self.flow:
             self.flow_data = self.raw_data['00060'].to_frame()
             self.flow_data['date'] = pd.to_datetime(self.flow_data.index, utc=True)
-            self.flow_data['date'] = self.flow_data['date'].dt.tz_convert(tz='US/Pacific')
+            self.flow_data['date'] = self.flow_data['date'].dt.tz_convert(tz='Etc/GMT+8')
+            #self.flow_data['date'] = self.flow_data['date'].dt.tz_convert(tz='US/Pacific')
             self.flow_data['date'] = self.flow_data['date'].dt.tz_localize(tz=None)
             self.flow_data = self.flow_data.set_index('date')
         if self.depth:
@@ -84,7 +85,7 @@ class TemporaryFlowMonitorData(Data):
             except:
                 self.depth_data = self.raw_data.iloc[:, 3].to_frame()
             self.depth_data['date'] = pd.to_datetime(self.depth_data.index, utc=True)
-            self.depth_data['date'] = self.depth_data['date'].dt.tz_convert(tz='US/Pacific')
+            self.depth_data['date'] = self.depth_data['date'].dt.tz_convert(tz='Etc/GMT+8')
             self.depth_data['date'] = self.depth_data['date'].dt.tz_localize(tz=None)
             self.depth_data = self.depth_data.set_index('date')
 
@@ -258,10 +259,13 @@ class TemporaryFlowMonitorData(Data):
         resample_interval = str(self.filtered_time_step) + 'min'
         if self.flow:
             self.filtered_flow_data = self.filtered_flow_data.resample(resample_interval).mean()
+            self.filtered_flow_data = self.filtered_flow_data.interpolate(limit=2)
         if self.depth:
             self.filtered_depth_data = self.filtered_depth_data.resample(resample_interval).mean()
+            self.filtered_depth_data = self.filtered_depth_data.interpolate(limit=2)
         if self.velocity:
             self.filtered_velocity_data = self.filtered_velocity_data.resample(resample_interval).mean()
+            self.filtered_velocity_data = self.filtered_velocity_data.interpolate(limit=2)
         pass
 
     def swap_filtered_velocity_and_flow(self, begin_date, end_date):

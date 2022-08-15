@@ -47,6 +47,9 @@ class BaseDataIo():
         self.write_data_to_regular_dss(dss_file_path, path_name, start_date, depth_data, data_type, units,  interval_in_minutes)
 
     def write_data_to_regular_dss(self, dss_file_path, path_name, start_date, data: pd.DataFrame, data_type, units, interval_in_minutes):
+        dsn_missing_data_flag = -901
+        resample_interval = str(interval_in_minutes) + 'min'
+        data = data.resample(resample_interval).asfreq().fillna(dsn_missing_data_flag)
         tsc = TimeSeriesContainer()
         tsc.pathname = path_name
         tsc.startDateTime = start_date
