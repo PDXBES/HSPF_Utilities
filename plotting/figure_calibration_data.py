@@ -17,7 +17,7 @@ mplstyle.use('fast')
 
 class CalibrationDataReview(object):
     def __init__(self, begin, end, precipitation_gages, monitor_data_sets, simulated_data_sets,
-                 scatter_plots=False, depth_plot=False, title="", peak_flow = None):
+                 scatter_plots=False, depth_plot=False, title="", peak_flow=None):
         self.title = title
         self.scatter_plots = scatter_plots
         self.depth_plots = depth_plot

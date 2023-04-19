@@ -957,6 +957,7 @@ class FigureDataReview(object):
 
         ax_scatter_velocity = self.fig.add_subplot(gs1[1, 0])
 
+# create and add plots
         self.precipitation_plot = PrecipitationPlot(self.begin, self.end, precipitation_gages, ax_precip)
         self.precipitation_plot.create_plot()
         if self.flow:
@@ -977,6 +978,7 @@ class FigureDataReview(object):
             self.velocity_scatter_plot = VelocityScatterPlot(self.begin, self.end, ax_scatter_velocity, [self.monitor_data_sets])
             self.velocity_scatter_plot.create_plot()
 
+# Interactive
         # self.fig.canvas.mpl_connect("motion_notify_event", self.hover)
         # self.fig.canvas.mpl_connect('key_press_event', self.press)
         self.fig.canvas.mpl_connect('pick_event', self.onpick)
@@ -1027,7 +1029,7 @@ class FigureDataReview(object):
         self.fig.canvas.draw_idle()
 
 input_wdm = r"V:\HydroModHSPF\Models\HSPFWorkshopMaterials\HSPFData\Met5min.wdm"
-input_wdm = r"C:\Temp\MetWestSide_Filled.wdm"
+#input_wdm = r"C:\Temp\MetWestSide_Filled.wdm"
 rgs = [10, 4, 172]
 precipitation_gages = []
 for rg in rgs:

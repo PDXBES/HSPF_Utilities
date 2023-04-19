@@ -1,6 +1,7 @@
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.dates as dates
 
+
 class AnchorTextData(object):
     def __init__(self, axs, observed_data=None, simulated_data=None):
         self.observed_data_sets = observed_data
