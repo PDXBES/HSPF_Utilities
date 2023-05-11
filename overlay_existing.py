@@ -31,7 +31,7 @@ directors_layer = "Directors"
 nodes_layer = "Nodes"
 links_layer = "Links"
 
-raster = r'V:\HydroModHSPF\gis\tiff\OverlayWest.tif'
+raster = r'V:\HydroModHSPF\gis\tiff\OverlayWest_4_10_23.tif'
 
 # df areas
 areas = gpd.read_file(input_gdb, layer=area_layer)

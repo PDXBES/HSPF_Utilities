@@ -7,18 +7,21 @@ from hspf.businessclasses.perlnd import Perlnd
 from hspf.businessclasses.outlet import Outlet
 from hspf.businessclasses.subbasin import Subbasin
 from hspf.businessclasses.explicit_subbasin import ExplicitSubbasin
+from hspf.businessclasses.future_subbasin import FutureSubbasin
 from typing import Optional, List
 from common.conversion_constants import ConversionConstants
 import math
 import sys
-
+import gc
 
 class Hspf(object):
 # TODO add command line interface
 # TODO add progress bar
 
     def __init__(self, hspf_data_io):
-        self.wdm_file = None
+        self.suro_wdm_file = None
+        self.ifwo_wdm_file = None
+        self.agwo_wdm_file = None
         self.conversion_constants = ConversionConstants()
         self.hru_area_in_acres = 1 #500/43560 #500 sq ft stick to integers to avoid additional rounding errors
 
@@ -65,6 +68,7 @@ class Hspf(object):
 
         self.subbasins: List[Subbasin] = []
         self.explicit_impervious_area_subbasins: List[Subbasin] = []
+        self.future_area_subbasins: List[Subbasin] = []
         self.node_outlets: List[Outlet] = []
         self.dsns = []
         self.codes = []
@@ -136,7 +140,7 @@ class Hspf(object):
                     elif baseflow_area > 0:
                         print ("subbasin: " + str(subbasin.subbasin_name) + " has more than 1 base flow outlet")
 
-    def create_explicit_impervious_area_subbasins(self, explicit_impervious_area_outlet, input_file, predeveloped=False, include_impervious=False):
+    def create_explicit_impervious_area_subbasins(self, explicit_impervious_area_outlet_file, input_file, predeveloped=False, include_impervious=False):
         try:
             input_file_df = pd.read_csv(input_file, skipinitialspace=True)
             #input_file_df.LABEL = pd.to_numeric(input_file_df.LABEL.replace({',': ''}, regex=True))
@@ -146,7 +150,7 @@ class Hspf(object):
             return
 
         try:
-            explicit_impervious_area_outlet_df = pd.read_csv(explicit_impervious_area_outlet, skipinitialspace=True)
+            explicit_impervious_area_outlet_df = pd.read_csv(explicit_impervious_area_outlet_file, skipinitialspace=True)
             explicit_impervious_area_outlet_df.dropna(subset=["suro_outlet",
                                                               "ifwo_outlet",
                                                               "agwo_outlet"],
@@ -217,6 +221,90 @@ class Hspf(object):
                 print("Added explicit impervious area subbsasin area_name: " + str(area_name) + " suro ifwo agwo outlet_names: " + subbasin_name)
             else:
                 print("Explicit area: " + str(area_name) + " has no area overlay input_file")
+                # except:
+                #     print(str(sys.exc_info()[0]))
+                #     sys.exit()
+
+    def create_future_subbasins(self, future_area_outlet_file, input_file, include_impervious=False):
+        try:
+            input_file_df = pd.read_csv(input_file, skipinitialspace=True)
+            #input_file_df.LABEL = pd.to_numeric(input_file_df.LABEL.replace({',': ''}, regex=True))
+            codes = input_file_df.LABEL
+        except:
+            print("Could not read future area input file")
+            return
+
+        try:
+            future_area_outlet_df = pd.read_csv(future_area_outlet_file, skipinitialspace=True)
+            # future_area_outlet_df.dropna(subset=["suro_outlet",
+            #                                      "ifwo_outlet",
+            #                                      "agwo_outlet"],
+            #                              how="all",
+            #                              inplace=True)
+        except:
+            print("Could not read explicit area outlet file")
+            return
+
+        sorted_future_impervious_area_outlet_df = future_area_outlet_df.sort_values(by=['AreaName'])
+        future_outlet_data = sorted_future_impervious_area_outlet_df.itertuples()
+        for future_outlet in future_outlet_data:
+            subbasin_name = future_outlet.AreaName
+            outlet = future_outlet.NodeName
+            total_area = future_outlet.TotalArea
+            surfaceflow_area = future_outlet.SuroArea
+            interflow_area = future_outlet.IfwoArea
+            baseflow_area = future_outlet.AgwoArea
+
+            maximum_impervious_area_percentage = future_outlet.MaxImperviousAreaPercentage/100
+            new_impervious_area_percentage = future_outlet.NewImperviousAreaPercentage/100
+            connectivity = future_outlet.Connectivity / 100
+
+            future_subbasin = FutureSubbasin(self, subbasin_name)
+            future_subbasin.emgaats_area = total_area / self.conversion_constants.sqft_per_acre
+            if future_subbasin.outlet_surface_flow is None and surfaceflow_area > 0:
+                future_subbasin.outlet_surface_flow = outlet
+                if surfaceflow_area != total_area:
+                    future_subbasin.surfaceflow_area_factor = surfaceflow_area / total_area
+                    print("Subbasin " + str(subbasin_name) + " surface flow_area: " + str(
+                        surfaceflow_area) + " is not the same as total area: " + str(total_area))
+            elif surfaceflow_area > 0:
+                print("subbasin: " + str(future_subbasin.subbasin_name) + " has more than 1 surface flow outlet")
+            if future_subbasin.outlet_inter_flow is None and interflow_area > 0:
+                future_subbasin.outlet_inter_flow = outlet
+                if interflow_area != total_area:
+                    future_subbasin.interflow_area_factor = interflow_area / total_area
+                    print("Subbasin " + str(subbasin_name) + " interflow_area: " + str(
+                        interflow_area) + " is not the same as total area: " + str(total_area))
+            elif interflow_area > 0:
+                print("subbasin: " + str(future_subbasin.subbasin_name) + " has more than 1 inter flow outlet")
+            if future_subbasin.outlet_base_flow is None and baseflow_area > 0:
+                future_subbasin.outlet_base_flow = outlet
+                if baseflow_area != total_area:
+                    future_subbasin.baseflow_area_factor = baseflow_area / total_area
+                    print("Subbasin " + str(subbasin_name) + " base flow_area: " + str(
+                        baseflow_area) + " is not the same as total area: " + str(total_area))
+            elif baseflow_area > 0:
+                print("subbasin: " + str(future_subbasin.subbasin_name) + " has more than 1 base flow outlet")
+
+            areas = input_file_df[future_subbasin.subbasin_name]
+            non_zero_areas = areas[areas > 0]
+            if not non_zero_areas.empty:
+                # future_subbasin = FutureSubbasin(self, subbasin_name)
+                future_subbasin.create_soil_slope_perv_cover_landuse_connectivity_area_lookup()
+                for row_id in non_zero_areas.index:
+                    raster_cells = non_zero_areas[row_id]
+                    code = codes[row_id]
+                    area = float(int(raster_cells) * self.cell_area_sqft) / self.conversion_constants.sqft_per_acre
+                    future_subbasin.code_to_soil_slope_area_subbasin_impervious(code, area)
+
+                future_subbasin.future_subbasin_area_to_perlnd_implnd(future_outlet.TotalArea / self.conversion_constants.sqft_per_acre,
+                                                                      maximum_impervious_area_percentage,
+                                                                      connectivity,
+                                                                      include_impervious)
+                self.future_area_subbasins.append(future_subbasin)
+                print("Added future area subbsasin area_name: " + str(future_subbasin.subbasin_name) + " suro ifwo agwo outlet_names: " + subbasin_name)
+            else:
+                print("Future area: " + str(future_subbasin.subbasin_name) + " has no area overlay input_file")
                 # except:
                 #     print(str(sys.exc_info()[0]))
                 #     sys.exit()
@@ -298,6 +386,19 @@ class Hspf(object):
                 outlets.append(explicit_subbasin.outlet_surface_flow)
             else:
                 print("Explicit Area: " + explicit_subbasin.subbasin_name + " surface flow is not connected to a node")
+        for future_subbasin in self.future_area_subbasins:
+            if future_subbasin.outlet_base_flow is not None:
+                outlets.append(future_subbasin.outlet_base_flow)
+            else:
+                print("Future Area: " + future_subbasin.subbasin_name + " base flow is not connected to a node")
+            if future_subbasin.outlet_inter_flow is not None:
+                outlets.append(future_subbasin.outlet_inter_flow)
+            else:
+                print("Future Area: " + future_subbasin.subbasin_name + " inter flow is not connected to a node")
+            if future_subbasin.outlet_surface_flow is not None:
+                outlets.append(future_subbasin.outlet_surface_flow)
+            else:
+                print("Future Area: " + future_subbasin.subbasin_name + " surface flow is not connected to a node")
 
         unique_outlets = set(outlets)
         for outlet in unique_outlets:
@@ -308,6 +409,7 @@ class Hspf(object):
             pass #TODO remove this try and except block
 
     def calculate_areas_for_outlets(self):
+        all_subbasins = None
         if self.subbasins and self.explicit_impervious_area_subbasins:
             all_subbasins = self.subbasins + self.explicit_impervious_area_subbasins
             print("Lumped and Explicit Subbasins")
@@ -321,17 +423,54 @@ class Hspf(object):
             print("No Subbasins Program Ended")
             sys.exit()
 
+        if self.future_area_subbasins is not None:
+            all_subbasins += self.future_area_subbasins
+            print("Added Future Subbasins")
+
         for outlet in self.node_outlets:
             outlet.calculate_base_flow_areas(all_subbasins)
             outlet.calculate_inter_flow_areas(all_subbasins)
             outlet.calculate_surface_flow_areas(all_subbasins)
 
-    def calculate_flow_at_each_outlet(self):
+    def calculate_base_flow_at_each_outlet(self):
         for outlet in self.node_outlets:
+            outlet.calculate_base_flow(self.hru_base_flow_df)
+        del self.hru_base_flow_df
+        gc.collect()
+        print("Calculated Flows")
+
+    def calculate_inter_flow_at_each_outlet(self):
+        for outlet in self.node_outlets:
+            outlet.calculate_base_flow(self.hru_inter_flow_df)
+        del self.hru_inter_flow_df
+        gc.collect()
+        print("Calculated Flows")
+
+    def calculate_surface_flow_at_each_outlet(self):
+        for outlet in self.node_outlets:
+            outlet.calculate_base_flow(self.hru_surface_flow_df)
+        del self.hru_surface_flow_df
+        gc.collect()
+        print("Calculated Flows")
+
+
+    def calculate_flow_at_each_outlet(self):
+        number_of_outlets = len(self.node_outlets)
+        outlet_number = 1
+        for outlet in self.node_outlets:
+            print(outlet.name)
+            print(outlet_number)
+            print(number_of_outlets)
             outlet.calculate_base_flow(self.hru_base_flow_df)
             outlet.calculate_inter_flow(self.hru_inter_flow_df)
             outlet.calculate_surface_flow(self.hru_surface_flow_df)
             outlet.calculate_total_flow()
+            outlet_number += 1
+        del self.hru_surface_flow_df
+        del self.hru_inter_flow_df
+        del self.hru_base_flow_df
+        gc.collect()
+        print("Calculated Flows")
 
     def surface_flow_dsns(self):
         dsns = []
@@ -357,13 +496,13 @@ class Hspf(object):
         dsns = self.surface_flow_dsns()
         hru_surfaceflows = []
         for dsn in dsns:
-            flow = self.extract_dsn_and_resample(dsn)
-            flow = self.filter_flow_based_on_start_and_stop_dates(flow)
+            flow = self.extract_dsn_and_resample(dsn,  self.suro_wdm_file)
+            flow = self.filter_flow_based_on_start_and_stop_dates(flow).astype('float32')
             hru_surfaceflows.append(flow)
         self.hru_surface_flow_df = pd.concat(hru_surfaceflows, axis=1)
 
-    def extract_dsn_and_resample(self, dsn):
-        flow = wdmtoolbox.extract(self.wdm_file, dsn).fillna(value=0)
+    def extract_dsn_and_resample(self, dsn, wdm_file_path):
+        flow = wdmtoolbox.extract(wdm_file_path, dsn).fillna(value=0)
         if self.output_timestep_in_minutes is not None:
             flow = flow.resample(str(self.output_timestep_in_minutes) + 'T').mean()
         return flow
@@ -372,8 +511,8 @@ class Hspf(object):
         dsns = self.inter_flow_dsns()
         hru_interflows = []
         for dsn in dsns:
-            flow = self.extract_dsn_and_resample(dsn)
-            flow = self.filter_flow_based_on_start_and_stop_dates(flow)
+            flow = self.extract_dsn_and_resample(dsn, self.ifwo_wdm_file)
+            flow = self.filter_flow_based_on_start_and_stop_dates(flow).astype('float32')
             hru_interflows.append(flow)
         self.hru_inter_flow_df = pd.concat(hru_interflows, axis=1)
 
@@ -381,8 +520,8 @@ class Hspf(object):
         dsns = self.base_flow_dsns()
         hru_baseflows = []
         for dsn in dsns:
-            flow = self.extract_dsn_and_resample(dsn)
-            flow = self.filter_flow_based_on_start_and_stop_dates(flow)
+            flow = self.extract_dsn_and_resample(dsn, self.agwo_wdm_file)
+            flow = self.filter_flow_based_on_start_and_stop_dates(flow).astype('float32')
             hru_baseflows.append(flow)
         self.hru_base_flow_df = pd.concat(hru_baseflows, axis=1)
 

@@ -1,6 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+
 class Plot(object):
     def __init__(self, begin_date, end_date, axs):
         self.begin_date = begin_date

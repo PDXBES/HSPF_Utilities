@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import sys
+import gc
 
 class Outlet(object):
     """SWMM node where unrouted HSPF flow is sent"""
@@ -46,19 +47,25 @@ class Outlet(object):
         self.base_flow_areas = np.sum(outlet_area_array, axis=0)
 
     def calculate_surface_flow(self, hru_surface_flow_dataframe):
-        outlet_flow_dataframe = hru_surface_flow_dataframe * self.surface_flow_areas
-        self.surface_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        # outlet_flow_dataframe = hru_surface_flow_dataframe * self.surface_flow_areas
+        # self.surface_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        self.surface_flow = pd.DataFrame((hru_surface_flow_dataframe * self.surface_flow_areas).sum(axis=1))
         self.surface_flow['node'] = self.name
+        print("Calculated Surface Flow")
 
     def calculate_inter_flow(self, hru_inter_flow_dataframe):
-        outlet_flow_dataframe = hru_inter_flow_dataframe * self.inter_flow_areas
-        self.inter_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        # outlet_flow_dataframe = hru_inter_flow_dataframe * self.inter_flow_areas
+        # self.inter_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        self.inter_flow = pd.DataFrame((hru_inter_flow_dataframe * self.inter_flow_areas).sum(axis=1))
         self.inter_flow['node'] = self.name
+        print("Calculated Inter Flow")
 
     def calculate_base_flow(self, hru_base_flow_dataframe):
-        outlet_flow_dataframe = hru_base_flow_dataframe * self.base_flow_areas
-        self.base_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        # outlet_flow_dataframe = hru_base_flow_dataframe * self.base_flow_areas
+        # self.base_flow = pd.DataFrame(outlet_flow_dataframe.sum(axis=1))
+        self.base_flow = pd.DataFrame((hru_base_flow_dataframe * self.base_flow_areas).sum(axis=1))
         self.base_flow['node'] = self.name
+        print("Calculated Base Flow")
 
     def calculate_total_flow(self):
         if self.base_flow is not None and not self.base_flow.empty and \
@@ -80,4 +87,9 @@ class Outlet(object):
         else:
             print("No Flow")
             sys.exit()
+        self.base_flow = None
+        self.surface_flow = None
+        self.inter_flow = None
         self.total_flow['node'] = self.name
+        print("Calculated Total Flow")
+

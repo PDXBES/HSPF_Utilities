@@ -176,7 +176,6 @@ class HspfDataIo(object):
                 "END RUN\n"
             uci_file.write(text)
 
-
     def write_hspf_uci_to_file(self, hspf, hspf_uci_file, name, description, rg, start_date, stop_date, rg_multiplier,evap, evap_multiplier):
         hru = False
         with open(hspf_uci_file, 'w') as uci_file:
@@ -287,7 +286,9 @@ class HspfDataIo(object):
         if hru:
             files = \
                 "WDM1       26   Met5min.wdm\n" + \
-                "WDM2       37   HRU" + str(rg) + ".wdm\n" +\
+                "WDM2       37   HRU" + "SURO" + ".wdm\n" + \
+                "WDM3       47   HRU" + "IFWO" + ".wdm\n" + \
+                "WDM4       57   HRU" + "AGWO" + ".wdm\n" + \
                 "MESSU      25   Unrouted.MES\n\n"
         else:
             files = \
@@ -306,7 +307,9 @@ class HspfDataIo(object):
             "<-ID->                                                              ***\n"
         files = \
                 "WDM1       26   DesignStorm5min.wdm\n" + \
-                "WDM2       37   HRU" + storm + ".wdm\n" +\
+                "WDM2       37   HRU" + "SURO" + storm + ".wdm\n" + \
+                "WDM3       37   HRU" + "IFWO" + storm + ".wdm\n" + \
+                "WDM4       37   HRU" + "AGWO" + storm + ".wdm\n" + \
                 "MESSU      25   Unrouted.MES\n\n"
 
         footer = "END FILES\n"
@@ -609,6 +612,7 @@ class HspfDataIo(object):
         precip_to_dss = \
         "WDM1   " + "{:3d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          COPY    15     INPUT  MEAN   1 1\n\n"
 
+# Is this used or can it be deleted
         obs_flow_to_dss = \
         "WDM3   " + "{:3d}".format(1) + " FLOW     ENGL    " + "{:4.3f}".format(1) + "          COPY    16     INPUT  MEAN   1 1\n\n"
 
@@ -628,17 +632,17 @@ class HspfDataIo(object):
         "<-Volume-> <Member> SsysSgap<--Mult-->Tran <-Target vols> <-Grp> <-Member->  ***\n"+\
         "<Name>   # <Name> # tem strg<-factor->strg <Name>   #   #        <Name> # #  ***\n"
 
-        # sources = \
-        # "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
-        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
-        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+        sources = \
+        "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
 
         # sources = \
         # "WDM1  " + "{:4d}".format(193) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
@@ -654,19 +658,19 @@ class HspfDataIo(object):
         # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
         # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
 
-        sources = \
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
-        "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
+        # sources = \
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 201 299 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 301 399 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(161) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 401 499 EXTNL  PREC\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
+        # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
 
         # sources = \
         # "WDM1  " + "{:4d}".format(227) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
@@ -710,9 +714,11 @@ class HspfDataIo(object):
         # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:4.3f}".format(evap_multiplier) + "          PERLND   1 999 EXTNL  PETINP\n" +\
         # "WDM1  " + "{:4d}".format(evap) + " EVAP     ENGL    " + "{:3.3f}".format(evap_multiplier) + "          IMPLND   1 999 EXTNL  PETINP\n"
 
+        # TODO is this needed
         precip_to_dss = \
         "WDM1   " + "{:3d}".format(rg) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          COPY    15     INPUT  MEAN   1 1\n\n"
 
+        # TODO is this needed
         obs_flow_to_dss = \
         "WDM3   " + "{:3d}".format(1) + " FLOW     ENGL    " + "{:4.3f}".format(1) + "          COPY    16     INPUT  MEAN   1 1\n\n"
 
@@ -781,12 +787,12 @@ class HspfDataIo(object):
             perlnd_ifwo += "COPY   {:3d} OUTPUT MEAN   2 1 {:8g}{:>10s} {:5d} FLOW     ENGL      REPL\n".format(
                                                                                                perlnd.perlnd_id,
                                                                                                145.2,
-                                                                                               "WDM2",
+                                                                                               "WDM3",
                                                                                                dsn_ifwo)
             perlnd_agwo += "COPY   {:3d} OUTPUT MEAN   3 1 {:8g}{:>10s} {:5d} FLOW     ENGL      REPL\n".format(
                                                                                                perlnd.perlnd_id,
                                                                                                145.2,
-                                                                                               "WDM2",
+                                                                                               "WDM4",
                                                                                                dsn_agwo)
         implnd_suro = "***SURO\n"
         for implnd in hspf.implnds:
@@ -852,10 +858,36 @@ class HspfDataIo(object):
             subbasin_perlnd_implnd_dict['IFWO'] = subbasin.outlet_inter_flow
             subbasin_perlnd_implnd_dict['AGWO'] = subbasin.outlet_base_flow
             for perlnd in subbasin.perlnds:
-                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc] = perlnd.area
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_suro"] = perlnd.area * subbasin.surfaceflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_ifwo"] = perlnd.area * subbasin.interflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_agwo"] = perlnd.area * subbasin.baseflow_area_factor
             for implnd in subbasin.implnds:
                 subbasin_perlnd_implnd_dict[str(implnd.implnd_id) + "_" + implnd.desc] = implnd.area
-            subbasin_perlnd_implnd_dicts.append(subbasin_perlnd_implnd_dict)
+            if not subbasin.outlet_surface_flow is None \
+                or not subbasin.outlet_surface_flow is None \
+                    or not subbasin.outlet_base_flow is None:
+                subbasin_perlnd_implnd_dicts.append(subbasin_perlnd_implnd_dict)
+
+        for subbasin in hspf.future_area_subbasins:
+            subbasin_perlnd_implnd_dict = {}
+            subbasin_perlnd_implnd_dict['NAME'] = subbasin.subbasin_name
+            subbasin_perlnd_implnd_dict['SURO'] = subbasin.outlet_surface_flow
+            subbasin_perlnd_implnd_dict['IFWO'] = subbasin.outlet_inter_flow
+            subbasin_perlnd_implnd_dict['AGWO'] = subbasin.outlet_base_flow
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_suro"] = perlnd.area * subbasin.surfaceflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_ifwo"] = perlnd.area * subbasin.interflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[str(perlnd.perlnd_id) + "_" + perlnd.desc + "_agwo"] = perlnd.area * subbasin.baseflow_area_factor
+            for implnd in subbasin.implnds:
+                subbasin_perlnd_implnd_dict[str(implnd.implnd_id) + "_" + implnd.desc] = implnd.area
+            if not subbasin.outlet_surface_flow is None \
+                or not subbasin.outlet_surface_flow is None \
+                    or not subbasin.outlet_base_flow is None:
+                subbasin_perlnd_implnd_dicts.append(subbasin_perlnd_implnd_dict)
         subbasin_dataframe = pd.DataFrame(subbasin_perlnd_implnd_dicts) #.transpose()
         return subbasin_dataframe
 
@@ -1142,9 +1174,13 @@ class HspfDataIo(object):
         flow_data = wdmtoolbox.extract(wdm_file_path, dsn)
         return flow_data
 
-    def create_blank_unrouted_flow_wdm(self, hspf: Hspf, output_blank_wdm_file_path):
+    def create_blank_unrouted_flow_wdm(self, hspf: Hspf, output_blank_wdm_file_path_suro, output_blank_wdm_file_path_ifwo, output_blank_wdm_file_path_agwo):
         # print("Create wdm")
-        wdmtoolbox.createnewwdm(output_blank_wdm_file_path, True)
+        wdmtoolbox.createnewwdm(output_blank_wdm_file_path_suro, True)
+
+        wdmtoolbox.createnewwdm(output_blank_wdm_file_path_ifwo, True)
+
+        wdmtoolbox.createnewwdm(output_blank_wdm_file_path_agwo, True)
 
         tcode = 2
         tstep = hspf.input_timestep_in_minutes
@@ -1152,16 +1188,16 @@ class HspfDataIo(object):
         perlnds = hspf.perlnds
         implnds = hspf.implnds
 
-        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path, tcode, tstep, "SURO",
+        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path_suro, tcode, tstep, "SURO",
                                                     hspf.perlnd_surface_flow_base_dsn, perlnds)
 
-        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path, tcode, tstep, "IFWO",
+        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path_ifwo, tcode, tstep, "IFWO",
                                                     hspf.perlnd_inter_flow_base_dsn, perlnds)
 
-        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path, tcode, tstep, "AGWO",
+        self.create_blank_unrouted_flow_perlnd_dsns(output_blank_wdm_file_path_agwo, tcode, tstep, "AGWO",
                                                     hspf.perlnd_base_flow_base_dsn, perlnds)
 
-        self.create_blank_unrouted_flow_implnd_dsns(output_blank_wdm_file_path, tcode, tstep, "SURO",
+        self.create_blank_unrouted_flow_implnd_dsns(output_blank_wdm_file_path_suro, tcode, tstep, "SURO",
                                                     hspf.implnd_surface_flow_base_dsn, implnds)
 
     def copy_obs_data_dss(self, obs_flow_dss, simulation_dsn):
@@ -1264,7 +1300,7 @@ class HspfDataIo(object):
                            "SYS_FLOW_TOL 5\n" + \
                            "LAT_FLOW_TOL 5\n" + \
                            "MINIMUM_STEP 0.5\n" + \
-                           "THREADS 6\n" + \
+                           "THREADS 10\n" + \
                            "\n"
                     while line is not '':
                         line = input_swmm_inp.readline()
@@ -1526,21 +1562,21 @@ class HspfDataIo(object):
     def copy_met_data_wdm(self, input_wdm_filepath, simulation_input_wdm_file_path):
         shutil.copyfile(input_wdm_filepath, simulation_input_wdm_file_path)
 
-    def copy_unrouted_flow_uci(self, uci_filepath, simulation_uci_filepath, rg):
-        with open(uci_filepath, 'r') as input_uci:
-            uci = input_uci.read()
-            uci = uci.replace('HRU_RG#.wdm', 'HRU{:d}.wdm'.format(rg))
-            uci = uci.replace('RG#', '{:3d}'.format(rg))
-            with open(simulation_uci_filepath, 'w') as output_uci:
-                output_uci.write(uci)
+    # def copy_unrouted_flow_uci(self, uci_filepath, simulation_uci_filepath, rg):
+    #     with open(uci_filepath, 'r') as input_uci:
+    #         uci = input_uci.read()
+    #         uci = uci.replace('HRU_RG#.wdm', 'HRU{:d}.wdm'.format(rg))
+    #         uci = uci.replace('RG#', '{:3d}'.format(rg))
+    #         with open(simulation_uci_filepath, 'w') as output_uci:
+    #             output_uci.write(uci)
 
-    def copy_unrouted_design_flow_uci(self, uci_filepath, simulation_uci_filepath, storm_dsn, hru_wdm):
-        with open(uci_filepath, 'r') as input_uci:
-            uci = input_uci.read()
-            uci = uci.replace('#STORM.WDM', hru_wdm)
-            uci = uci.replace('RG##', '{:4d}'.format(storm_dsn))
-            with open(simulation_uci_filepath, 'w') as output_uci:
-                output_uci.write(uci)
+    # def copy_unrouted_design_flow_uci(self, uci_filepath, simulation_uci_filepath, storm_dsn, hru_wdm):
+    #     with open(uci_filepath, 'r') as input_uci:
+    #         uci = input_uci.read()
+    #         uci = uci.replace('#STORM.WDM', hru_wdm)
+    #         uci = uci.replace('RG##', '{:4d}'.format(storm_dsn))
+    #         with open(simulation_uci_filepath, 'w') as output_uci:
+    #             output_uci.write(uci)
 
     def create_simulation_folder(self, simulation_folder):
         if os.path.exists(simulation_folder):
@@ -1703,10 +1739,20 @@ class HspfDataIo(object):
         try:
             lumped_model_rchres = read_observed_and_simulation_data['Lumped Model RCHRES'].values[0]
         except:
-            print("could not read  lumped model RCHRES")
+            print("could not read lumped model RCHRES")
             lumped_model_rchres = None
         locations_title_for_plots = read_observed_and_simulation_data['Location Title for Plots']
         return gage_location_id, swmm_link, lumped_model_rchres, locations_title_for_plots
+
+    def read_to_dss(self):
+        file_paths = pd.read_excel(self.input_file, sheet_name='ToDSS', header=0)
+        links = file_paths['Links'].dropna().values
+        nodes = file_paths['Nodes'].dropna().values
+        if len(links) > 0:
+            links = list(links)
+        if len(nodes) > 0:
+            nodes = list(nodes)
+        return links, nodes
 
     def read_file_paths(self):
         file_paths = pd.read_excel(self.input_file, sheet_name='FilePaths', header=0)

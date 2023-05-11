@@ -77,6 +77,8 @@ def main(argv):
     else:
         input_file = argv[0]
 
+    path = input_file
+
     include_impervious = True
     print("Running: " + input_file)
 
@@ -134,9 +136,10 @@ def main(argv):
 
     events = hspf_data_io.read_events()
     emgaats_model_folder, win_hspf_lt_path, swmm_exe_path, observed_data_folder = hspf_data_io.read_file_paths()
-    dirname, filename = os.path.split(ex.fileName)
+    dirname, filename = os.path.split(input_file)
     emgaats_model_folder = dirname
     gage_location_id, swmm_link, lumped_model_rchres, locations_title_for_plots = hspf_data_io.read_observed_and_simulation_data()
+    dss_links, dss_nodes = hspf_data_io.read_to_dss()
     name, description = hspf_data_io.read_simulation_name_and_description()
     rain_gage, rain_gage_multiplier, pan_evap_evapotranspiration = hspf_data_io.read_precip_and_evap()
 
@@ -316,6 +319,7 @@ def main(argv):
         interface = swmm_simulation_file_path + r"\hspf_to_swmm.txt"
         outlets = swmm_input_file_path + r"\SWMM.hspf.csv"
         explicit_subbasin_outlets = swmm_input_file_path + r"\explicit_areas_hspf.csv"
+        future_subbasin_outlets = swmm_input_file_path + r"\future_areas_hspf.csv"
         summary_file = hspf_simulation_file_path + r"\subbasin_summary.csv"
         implnd_perlnd_file = hspf_simulation_file_path + r"\hspf_schematic_block.txt"
         subbasin_dataframe_output_file_path = hspf_simulation_file_path + r"\hspf_subbasin.xlsx"
@@ -356,6 +360,7 @@ def main(argv):
             hspf.read_input_file(input, include_impervious=include_impervious, predevelopment=predeveloped)
             hspf.read_new_outlet_file(outlets)
             hspf.create_explicit_impervious_area_subbasins(explicit_subbasin_outlets, explicit_input, include_impervious=include_impervious)
+            hspf.create_future_subbasins(future_subbasin_outlets, explicit_input, include_impervious=include_impervious)
             hspf.create_unique_outlets()
             subbasin_text = hspf_data_io.write_hspf_schematic_block_individual_subbasins_text(hspf, hspf.subbasins)
             subbasin_dataframe = hspf_data_io.write_individual_subbasins_to_dataframe(hspf, hspf.subbasins)
@@ -369,9 +374,13 @@ def main(argv):
 
             print("Read HRU Flows")
             progressbar = SimpleProgressBar()
+            #hspf.calculate_areas_for_outlets()
             hspf.create_hru_base_flow_dataframe()
+            #hspf.calculate_base_flow_at_each_outlet()
             hspf.create_hru_inter_flow_dataframe()
+            #hspf.calculate_inter_flow_at_each_outlet()
             hspf.create_hru_surface_flow_dataframe()
+            #hspf.calculate_surface_flow_at_each_outlet()
             progressbar.finish()
 
             print("Calculate Flows")
@@ -773,8 +782,8 @@ def main(argv):
             simulation_routed_flow_dss_file_path = r"SWMM2DSSnew.dss"
             for link in links_df.itertuples():
                 link_name = link[1]
-                if len(simulated_links_output)> 0:
-                    if link_name in simulated_links_output:
+                if len(dss_links) > 0:
+                    if link_name in dss_links:
                         basin_name = "Tryon"
                         dss_path = "/" + basin_name + "/" + str(link_name) + "/FLOW//5MIN/SIM" + scenario + "/"
                         flow_df = swmmtoolbox.extract(simulation_swmm_out_file_path, ['link', link_name, 'Flow_rate'])

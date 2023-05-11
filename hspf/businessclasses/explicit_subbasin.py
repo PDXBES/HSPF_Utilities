@@ -1,6 +1,7 @@
 from hspf.businessclasses.subbasin import Subbasin
 import math
 
+
 class ExplicitSubbasin(Subbasin):
     def __init__(self, hspf, name):
         super().__init__(hspf, name)
