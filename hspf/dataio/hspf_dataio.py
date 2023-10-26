@@ -4,7 +4,11 @@ from hspf.businessclasses.perlnd import Perlnd
 from hspf.businessclasses.subbasin import Subbasin
 from common.conversion_constants import ConversionConstants
 from typing import List
-from wdmtoolbox import wdmtoolbox
+try:
+    from wdmtoolbox import wdmtoolbox
+except:
+    pass
+import datetime
 import shutil
 import subprocess
 import os
@@ -41,18 +45,51 @@ class HspfDataIo(object):
         header = header + "Node             Year Mon Day Hr  Min Sec FLOW\n"
         return header
 
-    def write_interface_file_header(self,  hspf: Hspf):
+    def write_icm_inflow_event_file_header(self, hspf: Hspf, begin_date):
         number_of_nodes = len(hspf.node_outlets)
-        header = "SWMM5 Interface File\n"
-        header = header + "Unrouted HSPF Flows\n"
-        header = header + str(hspf.output_timestep_in_minutes * self.conversion_constants.seconds_in_minute) + "\n"
-        header = header + "1\n"
-        header = header + "FLOW CFS\n"
-        header = header + str(number_of_nodes) + "\n"
+        header = "!Version=1,type=QIN, encoding=MBCS\n"
+        header += "FILECONT, TITLE\n"
+        header += "UserSettings,U_VALUES,U_DATETIME\n"
+        header += "2,1\n"
+        header += "UserSettingsValues, ft3/s, mm-dd-yyyy hh:mm\n"
+        header += "G_START,G_TS,G_NPROFILES,G_DATATYPE\n"
+        header += begin_date + "," + "300" + "," + str(number_of_nodes) + ", 0\n"
+        header += "L_NODEID,L_PTITLE\n"
         for node in hspf.node_outlets:
-            header = header + node.name + "\n"
-        header = header + "Node             Year Mon Day Hr  Min Sec FLOW\n"
+            header += node.name + ",\n"
+        header += "P_DATETIME,"
+        for node in hspf.node_outlets:
+            header += node.name + ","
+        header += "\n"
         return header
+
+    def write_icm_inflow_event_file(self, hspf: Hspf, icm_file_path, begin_date, end_date):
+        df = hspf.flow_in_columns_df.loc[begin_date: end_date]
+        with open(icm_file_path, 'w') as f:
+            header = self.write_icm_inflow_event_file_header(hspf, begin_date)
+            f.write(header)
+        df.to_csv(icm_file_path, header=False, mode='a', date_format='%mm/%dd/%Y %H:%M:%s', float_format='%.8f')
+
+    def write_xpx_file(self, hspf: Hspf, xpx_file_path, begin_date, end_date):
+        df = hspf.flow_in_columns_df.loc[begin_date: end_date]
+        df["dt"] = df.index.values
+        t0 = min(df['dt'].values)
+        df['hour'] = df['dt'].apply(lambda x: (x - t0).days * 24 + (x - t0).seconds / 3600.0)
+        df = df.round(8)
+        hours = df['hour'].values
+        ct = len(hours)
+        hours_list = ' '.join(['{:.8f}'.format(x) for x in hours])
+        with open(xpx_file_path, 'w') as o:
+            for fld in df.columns:
+                if fld in ['dt', 'hour']:
+                    pass
+                else:
+                    values = df[fld].values
+                    values = ' '.join(['{:.8f}'.format(x) for x in values])
+
+                    o.write('DATA INQ "%s" 0 1 1\n' % fld)
+                    o.write('DATA TEO "%s" 0 %s %s\n' % (fld, ct, hours_list))
+                    o.write('DATA QCARD "%s" 0 %s %s\n' % (fld, ct, values))
 
     def write_interface_file(self, hspf: Hspf, interface_file):
         reorder_df = hspf.create_flow_df_for_interface_file()
@@ -307,9 +344,9 @@ class HspfDataIo(object):
             "<-ID->                                                              ***\n"
         files = \
                 "WDM1       26   DesignStorm5min.wdm\n" + \
-                "WDM2       37   HRU" + "SURO" + storm + ".wdm\n" + \
-                "WDM3       37   HRU" + "IFWO" + storm + ".wdm\n" + \
-                "WDM4       37   HRU" + "AGWO" + storm + ".wdm\n" + \
+                "WDM2       37   HRU" + "SURO" + ".wdm\n" + \
+                "WDM3       47   HRU" + "IFWO" + ".wdm\n" + \
+                "WDM4       57   HRU" + "AGWO" + ".wdm\n" + \
                 "MESSU      25   Unrouted.MES\n\n"
 
         footer = "END FILES\n"
@@ -625,7 +662,7 @@ class HspfDataIo(object):
         return text
 
     def write_hspf_ext_sources_as_text_multiple_rgs (self, rg, rg_multiplier, evap, evap_multiplier, hru):
-        evap = 2
+        # evap = 2
         # TODO EVAP DSN should not be hardwired
         header = \
         "EXT SOURCES\n"+\
@@ -633,8 +670,8 @@ class HspfDataIo(object):
         "<Name>   # <Name> # tem strg<-factor->strg <Name>   #   #        <Name> # #  ***\n"
 
         sources = \
-        "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
-        "WDM1  " + "{:4d}".format(4) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(192) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND   1  99 EXTNL  PREC\n" +\
+        "WDM1  " + "{:4d}".format(192) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND   1  99 EXTNL  PREC\n" +\
         "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 101 199 EXTNL  PREC\n" +\
         "WDM1  " + "{:4d}".format(10) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          IMPLND 101 199 EXTNL  PREC\n" +\
         "WDM1  " + "{:4d}".format(172) + " PREC     ENGL    " + "{:4.3f}".format(rg_multiplier) + "          PERLND 301 399 EXTNL  PREC\n" +\
@@ -849,6 +886,8 @@ class HspfDataIo(object):
         text = header + perlnd_suro_string + perlnd_ifwo_string + perlnd_agwo_string + implnd_string + footer
         return text
 
+
+
     def write_individual_subbasins_to_dataframe(self, hspf, subbasins):
         subbasin_perlnd_implnd_dicts = []
         for subbasin in hspf.subbasins:
@@ -867,6 +906,27 @@ class HspfDataIo(object):
                 subbasin_perlnd_implnd_dict[str(implnd.implnd_id) + "_" + implnd.desc] = implnd.area
             if not subbasin.outlet_surface_flow is None \
                 or not subbasin.outlet_surface_flow is None \
+                    or not subbasin.outlet_base_flow is None:
+                subbasin_perlnd_implnd_dicts.append(subbasin_perlnd_implnd_dict)
+        for subbasin in hspf.explicit_impervious_area_subbasins:
+            subbasin_perlnd_implnd_dict = {}
+            subbasin_perlnd_implnd_dict['NAME'] = subbasin.subbasin_name
+            subbasin_perlnd_implnd_dict['SURO'] = subbasin.outlet_surface_flow
+            subbasin_perlnd_implnd_dict['IFWO'] = subbasin.outlet_inter_flow
+            subbasin_perlnd_implnd_dict['AGWO'] = subbasin.outlet_base_flow
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[
+                    str(perlnd.perlnd_id) + "_" + perlnd.desc + "_suro"] = perlnd.area * subbasin.surfaceflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[
+                    str(perlnd.perlnd_id) + "_" + perlnd.desc + "_ifwo"] = perlnd.area * subbasin.interflow_area_factor
+            for perlnd in subbasin.perlnds:
+                subbasin_perlnd_implnd_dict[
+                    str(perlnd.perlnd_id) + "_" + perlnd.desc + "_agwo"] = perlnd.area * subbasin.baseflow_area_factor
+            for implnd in subbasin.implnds:
+                subbasin_perlnd_implnd_dict[str(implnd.implnd_id) + "_" + implnd.desc] = implnd.area
+            if not subbasin.outlet_surface_flow is None \
+                    or not subbasin.outlet_surface_flow is None \
                     or not subbasin.outlet_base_flow is None:
                 subbasin_perlnd_implnd_dicts.append(subbasin_perlnd_implnd_dict)
 
@@ -1721,6 +1781,13 @@ class HspfDataIo(object):
         return name, description
 
     def read_precip_and_evap(self):
+        precip_and_evap = pd.read_excel(self.input_file, sheet_name='PrecipAndEvap', header=0)
+        rain_gage = int(precip_and_evap['Rain Gage'].values[0])
+        rain_gage_multiplier = precip_and_evap['Rain Gage Multiplier'].values[0]
+        pan_evap_evapotranspiration = precip_and_evap['Pan Evap to Evapotranspiration'].values[0]
+        return rain_gage, rain_gage_multiplier, pan_evap_evapotranspiration
+
+    def read_precip_and_evap_multiple_rain_gages(self):
         precip_and_evap = pd.read_excel(self.input_file, sheet_name='PrecipAndEvap', header=0)
         rain_gage = int(precip_and_evap['Rain Gage'].values[0])
         rain_gage_multiplier = precip_and_evap['Rain Gage Multiplier'].values[0]
