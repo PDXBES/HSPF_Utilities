@@ -1,16 +1,23 @@
 import pandas as pd
 import pyodbc
-from wdmtoolbox import wdmtoolbox
+try:
+    from wdmtoolbox import wdmtoolbox
+except:
+    print("WDMToolbox not imported")
 import csv
 from flow_data.businessclasses.data import Data
-import dataretrieval.nwis as nwis
+try:
+    import dataretrieval.nwis as nwis
+except:
+    print("dataretrieval not imported")
 from datetime import datetime
 
 
-class TemporaryFlowMonitorData(Data):
+class ObservedData(Data):
     def __init__(self, location_id, flow=None, velocity=None, depth=None, minimum_depth=0.8, maximum_depth=10000, minimum_velocity=-100, maximum_velocity=100):
         super().__init__()
         self.location_id = location_id
+        self.drainage_area = None
         self.node_name = None
         self.link_name = None
         self.raw_data = None
@@ -50,6 +57,10 @@ class TemporaryFlowMonitorData(Data):
         with conn:
             self.raw_data = pd.read_sql(sql, conn, index_col="reading_datetime")
             self.process_raw_data()
+
+    def get_raw_data_from_excel(self, excel_file_path):
+        self.raw_data = pd.read_excel(excel_file_path, index_col=0)
+        self.process_raw_data()
 
     def get_aquarius_depth_data(self, url):
         self.depth_data = pd.read_csv(url)
@@ -168,20 +179,20 @@ class TemporaryFlowMonitorData(Data):
     def sensor_replacement_dates(self):
         return self.visit_data[self.visit_data['meter_visit_type'] == 'Sensor Replacement'].index.values
 
-    def write_raw_data_to_wdm(self, wdm):
-        tstype = 'FLOW'
-        base_year = 1948
-        tcode = 2
-        tstep = 5
-        statid = str(self.node_name)
-        scenario = "OBSERVED"
-        location = str(self.node_name)
-        description = str(self.node_name)
-        constituent = 'FLOW'
-        tsfill = -999.0
-        self.flow_data.tshift()
-        wdmtoolbox.createnewdsn(wdm, self.location_id, tstype, base_year, tcode, tstep, statid, scenario, location, description, constituent, tsfill)
-        wdmtoolbox._writetodsn(wdm, self.location_id, self.flow_data)
+    # def write_raw_data_to_wdm(self, wdm):
+    #     tstype = 'FLOW'
+    #     base_year = 1948
+    #     tcode = 2
+    #     tstep = 5
+    #     statid = str(self.node_name)
+    #     scenario = "OBSERVED"
+    #     location = str(self.node_name)
+    #     description = str(self.node_name)
+    #     constituent = 'FLOW'
+    #     tsfill = -999.0
+    #     self.flow_data.tshift()
+    #     wdmtoolbox.createnewdsn(wdm, self.location_id, tstype, base_year, tcode, tstep, statid, scenario, location, description, constituent, tsfill)
+    #     wdmtoolbox._writetodsn(wdm, self.location_id, self.flow_data)
 
     def filter_usgs_raw_data(self, avg_timestep_in_minutes):
         self.filtered_time_step = avg_timestep_in_minutes
@@ -195,7 +206,7 @@ class TemporaryFlowMonitorData(Data):
 
         resample_interval = str(self.filtered_time_step) + 'min'
         if self.flow:
-            self.filtered_flow_data= self.filtered_flow_data[~self.filtered_flow_data.index.duplicated(keep='first')]
+            self.filtered_flow_data = self.filtered_flow_data[~self.filtered_flow_data.index.duplicated(keep='first')]
             #self.filtered_flow_data = self.filtered_flow_data.resample(resample_interval).interpolate(limit=6, limit_area = 'inside') # pad will just repeat rather than interpolate
             self.filtered_flow_data = self.filtered_flow_data.resample(resample_interval).asfreq()
             data_column = self.filtered_flow_data.columns[0]
@@ -280,15 +291,15 @@ class TemporaryFlowMonitorData(Data):
         self.filtered_depth_data.loc[begin_date: end_date] = swap_depth
         self.filtered_velocity_data.loc[begin_date: end_date] = swap_velocity
 
-    def _write_timeseries_file_header(self, interface_file):
-        with open(interface_file, 'w') as interfacefile:
-            interfacefile.write(";Flow Data for link M76337\n")
-            interfacefile.write("M76337\n")
-
-    def write_timeseries_file(self, interface_file):
-        ### Writes calibration file for SWMM
-        self._write_timeseries_file_header(interface_file)
-        flow_df = self.flow_data.reset_index()
-        flow_df.to_csv(interface_file, mode='a', header=False, sep=' ', float_format="%.5f", index=False,
-                       date_format="%m/%d/%Y %H:%M", quoting=csv.QUOTE_NONE, escapechar=' ')
+    # def _write_timeseries_file_header(self, interface_file):
+    #     with open(interface_file, 'w') as interfacefile:
+    #         interfacefile.write(";Flow Data for link M76337\n")
+    #         interfacefile.write("M76337\n")
+    #
+    # def write_timeseries_file(self, interface_file):
+    #     ### Writes calibration file for SWMM
+    #     self._write_timeseries_file_header(interface_file)
+    #     flow_df = self.flow_data.reset_index()
+    #     flow_df.to_csv(interface_file, mode='a', header=False, sep=' ', float_format="%.5f", index=False,
+    #                    date_format="%m/%d/%Y %H:%M", quoting=csv.QUOTE_NONE, escapechar=' ')
 

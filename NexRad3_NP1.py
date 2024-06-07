@@ -9,7 +9,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.style as mplstyle
 import os
 from met_data.businessclasses.precipitation_gage import PrecipitationGage
-from flow_data.businessclasses.temporary_flow_monitor_data import TemporaryFlowMonitorData
+from flow_data.businessclasses.temporary_flow_monitor_data import ObservedData
 from plotting.plot_precipitation import PrecipitationPlot
 from plotting.plot_flow import FlowPlot
 import pandas as pd
@@ -241,7 +241,7 @@ for event in events.itertuples():
 
     # get flow data
     temporary_flow_monitors = []
-    temporary_flow_monitor = TemporaryFlowMonitorData(location_id=temporary_flow_monitor_location_id, flow=True)
+    temporary_flow_monitor = ObservedData(location_id=temporary_flow_monitor_location_id, flow=True)
     temporary_flow_monitor.get_filtered_flow_data_from_hdf5(temporary_flow_monitor_data_filtered_data_path)
     temporary_flow_monitor.get_flow_data_from_hdf5(temporary_flow_monitor_data_raw_data_path)
     temporary_flow_monitor.node_name = ""

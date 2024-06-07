@@ -2,7 +2,7 @@ from plotting.plot_precipitation import PrecipitationPlot
 from plotting.plot_flow import FlowPlot
 from plotting.plot_depth import DepthPlot
 from plotting.plot_flow_scatter import FlowScatterPlot
-from flow_data.businessclasses.temporary_flow_monitor_data import TemporaryFlowMonitorData
+from flow_data.businessclasses.temporary_flow_monitor_data import ObservedData
 from met_data.businessclasses.precipitation_gage import PrecipitationGage
 import matplotlib.pyplot as plt
 import matplotlib.dates as dates1

@@ -1,7 +1,7 @@
 from hspf.businessclasses.hspf import Hspf
 from hspf.dataio.hspf_dataio import HspfDataIo
 from flow_data.businessclasses.simulated_data import SimulatedData
-from flow_data.businessclasses.temporary_flow_monitor_data import TemporaryFlowMonitorData
+from flow_data.businessclasses.temporary_flow_monitor_data import ObservedData
 from plotting.figure_calibration_data import CalibrationDataReview
 from plotting.figure_calibration_peak_flow_data import CalibrationPeakFlowDataReview
 from plotting.figure_calibration_total_volume_bar_chart import TotalVolumeFlowBarChart
@@ -132,7 +132,7 @@ for rg in rgs:
         for monitor_location in monitor_location_ids:
             filtered_monitor_file = observed_flow_file_path + "\\" + "filtered" + str(monitor_location) + ".h5"
             monitor_file = observed_flow_file_path + "\\" + "raw" + str(monitor_location) + ".h5"
-            temporary_flow_monitor = TemporaryFlowMonitorData(monitor_location, flow=True)
+            temporary_flow_monitor = ObservedData(monitor_location, flow=True)
             temporary_flow_monitor.get_filtered_flow_data_from_hdf5(filtered_monitor_file)
             temporary_flow_monitor.get_flow_data_from_hdf5(monitor_file)
             temporary_flow_monitor.node_name = str(monitor_location)

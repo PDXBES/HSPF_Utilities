@@ -1,4 +1,4 @@
-from flow_data.businessclasses.temporary_flow_monitor_data import TemporaryFlowMonitorData
+from flow_data.businessclasses.temporary_flow_monitor_data import ObservedData
 from flow_data.businessclasses.simulated_data import SimulatedData
 from plotting import flow_duration_curve as fd
 import pandas as pd
@@ -26,7 +26,7 @@ simulated_data10.get_sim_flow_data(sim_flow10)
 simulated_data172 = SimulatedData(model_node, model_link)
 simulated_data172.get_sim_flow_data(sim_flow172)
 
-temp_monitor = TemporaryFlowMonitorData(location_id)
+temp_monitor = ObservedData(location_id)
 temp_monitor.get_raw_data(begin_date, end_date)
 temp_monitor.get_visit_data(begin_date, end_date)
 temp_monitor.filter_raw_data(15)

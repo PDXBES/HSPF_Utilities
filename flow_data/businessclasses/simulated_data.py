@@ -1,4 +1,7 @@
-from swmmtoolbox import swmmtoolbox
+try:
+    from swmmtoolbox import swmmtoolbox
+except:
+    print("SWMM toolbox not imported")
 from flow_data.businessclasses.data import Data
 import numpy as np
 
