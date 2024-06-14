@@ -14,11 +14,11 @@ from datetime import datetime
 
 
 class ObservedData(Data):
-    def __init__(self, location_id, flow=None, velocity=None, depth=None, minimum_depth=0.8, maximum_depth=10000, minimum_velocity=-100, maximum_velocity=100):
+    def __init__(self, location_id, node_name="1", flow=None, velocity=None, depth=None, minimum_depth=0.8, maximum_depth=10000, minimum_velocity=-100, maximum_velocity=100):
         super().__init__()
         self.location_id = location_id
         self.drainage_area = None
-        self.node_name = None
+        self.node_name = node_name
         self.link_name = None
         self.raw_data = None
         self.flow = flow
@@ -38,7 +38,7 @@ class ObservedData(Data):
     def get_flow_data_from_hdf5(self, file_path):
         self.flow_data = pd.DataFrame(pd.read_hdf(file_path))
 
-    def get_usgs_data(self, start_date, end_date):
+    def get_usgs_data(self, start_date, end_date, diameter_in_ft):
         self.raw_data = nwis.get_record(sites=str(self.location_id), service='iv', start=start_date, end=end_date)
         self.process_raw_usgs_data()
 
@@ -57,6 +57,41 @@ class ObservedData(Data):
         with conn:
             self.raw_data = pd.read_sql(sql, conn, index_col="reading_datetime")
             self.process_raw_data()
+
+    def get_raw_data_hydra_data(self, start_date, end_date, diameter_in_ft):
+        DB = {'servername': 'BESDBPROD1',
+              'database': 'NEPTUNE'}
+
+        sql = "declare @h2_num as int = " + str(self.location_id) + "\n" \
+              "declare @Vlocqual as varchar(20) = 'downstream'\n" \
+              "declare @Dlocqual as varchar(20) = 'downstream'\n" \
+              "declare @DiaFt as float = " + str(diameter_in_ft) + "\n" \
+              "declare @sdate as date = " + "'" + start_date + "'" + "\n" \
+              "declare @edate as date = " + "'" + end_date + "'" + "\n" \
+              "Select @h2_num as location_id, @Dlocqual as DLocQual, JoinData3.D05 as DateTime, JoinData3.Avgdepth as depth_inches, '+' as depth_qual, JoinData3.AVGvel as velocity_fps, '+' as velocity_qual, JoinData3.areaft*JoinData3.AVGvel as FlowCFS from \n" \
+              "(Select JoinData2.D05, JoinData2.Avgdepth, JoinData2.AVGvel, JoinData2.x, JoinData2.alpha,  0.5 * power(@DiaFt/2, 2) * (alpha - Sin(alpha)) as areaft from \n" \
+              "(Select JoinData.D05, JoinData.Avgdepth, JoinData.AVGvel, x, 2* (atan(-joindata.x/power(-(joindata.x) * joindata.x + 1,0.5))+2*atan(1)) as alpha from \n" \
+              "(Select Ddata.D05, Ddata.Avgdepth, Vdata.AVGvel, (SELECT CASE WHEN AVGDepth/12  > @DiaFt THEN (1 - 2 * .99999*@DiaFt / @DiaFt) ELSE (SELECT CASE WHEN AVGDepth = 0 THEN (1 - 2 * 0.25/12 / @DiaFt) ELSE (1 - 2 * AVgdepth/12 / @DiaFt) END) END)  as x    from \n" \
+              "(select DATETIMEFROMPARTS(DATEPART(YEAR, dbo.DEPTH_DATA.assigned_sample_time), DATEPART(MONTH, dbo.DEPTH_DATA.assigned_sample_time),DATEPART(DAY, dbo.DEPTH_DATA.assigned_sample_time), DATEPART(HOUR, dbo.DEPTH_DATA.assigned_sample_time), (DATEPART(MINUTE, dbo.DEPTH_DATA.assigned_sample_time) / 5)*5 ,0,0) as D05, AVG(dbo.depth_data.final_value) as AVGDepth\n" \
+              "From [dbo].[DEPTH_DATA] inner join [dbo].[STATION] on station.station_id = DEPTH_DATA.station_id\n" \
+              "WHERE ((dbo.station.h2_number=@h2_num) AND (dbo.DEPTH_DATA.location_qualifier=@Dlocqual) AND ((dbo.DEPTH_DATA.assigned_sample_time) Between @sdate And @edate))" \
+              "group by DATETIMEFROMPARTS(DATEPART(YEAR, dbo.DEPTH_DATA.assigned_sample_time), DATEPART(MONTH, dbo.DEPTH_DATA.assigned_sample_time),DATEPART(DAY, dbo.DEPTH_DATA.assigned_sample_time), DATEPART(HOUR, dbo.DEPTH_DATA.assigned_sample_time), (DATEPART(MINUTE, dbo.DEPTH_DATA.assigned_sample_time) / 5)*5,0,0)) as Ddata\n" \
+              "inner join" \
+              "(select DATETIMEFROMPARTS(DATEPART(YEAR, dbo.VELOCITY_DATA.assigned_sample_time), DATEPART(MONTH, dbo.VELOCITY_DATA.assigned_sample_time),DATEPART(DAY, dbo.VELOCITY_DATA.assigned_sample_time), DATEPART(HOUR, dbo.VELOCITY_DATA.assigned_sample_time), (DATEPART(MINUTE, dbo.VELOCITY_DATA.assigned_sample_time) / 5)*5 ,0,0) as D05, AVG(dbo.VELOCITY_DATA.final_value) as AVGVel\n" \
+              "From [dbo].[velocity_DATA] inner join [dbo].[STATION] on station.station_id = VELOCITY_DATA.station_id\n" \
+              "WHERE ((dbo.station.h2_number=@h2_num) AND (dbo.VELOCITY_DATA.location_qualifier=@Vlocqual) AND ((dbo.VELOCITY_DATA.assigned_sample_time) Between @sdate And @edate))\n" \
+              "group by DATETIMEFROMPARTS(DATEPART(YEAR, dbo.VELOCITY_DATA.assigned_sample_time), DATEPART(MONTH, dbo.VELOCITY_DATA.assigned_sample_time),DATEPART(DAY, dbo.VELOCITY_DATA.assigned_sample_time), DATEPART(HOUR, dbo.VELOCITY_DATA.assigned_sample_time), (DATEPART(MINUTE, dbo.VELOCITY_DATA.assigned_sample_time) / 5)*5,0,0)) as Vdata\n" \
+              "on Ddata.D05 = vdata.D05) as JoinData" \
+              ") as JoinData2\n" \
+              ") as JoinData3\n" \
+              "order by D05"
+
+        # create the connection
+        conn = pyodbc.connect('DRIVER={SQL Server};SERVER=' + DB['servername'] + ';DATABASE=' + DB[
+            'database'] + ';Trusted_Connection=yes')
+        with conn:
+            self.raw_data = pd.read_sql(sql, conn, index_col="DateTime")
+            self.process_raw_hydra_data()
 
     def get_raw_data_from_excel(self, excel_file_path):
         self.raw_data = pd.read_excel(excel_file_path, index_col=0)
@@ -117,6 +152,17 @@ class ObservedData(Data):
                                                       'velocity_fps', 'velocity_qual', flow_column], axis=1)
         pass
 
+    def process_raw_hydra_data(self):
+        if self.flow:
+            self.flow_data = pd.DataFrame(self.raw_data["FlowCFS"])
+            flow_column = "FlowCFS"
+
+        if self.velocity:
+            self.velocity_data = pd.DataFrame(self.raw_data["velocity_fps"])
+        if self.depth:
+            self.depth_data = pd.DataFrame(self.raw_data["depth_inches"])
+        pass
+
     def swap_velocity_and_flow(self, begin_date, end_date):
         swap_velocity = self.flow_data.loc[begin_date: end_date].copy(deep=True)
         swap_flow = self.velocity_data.loc[begin_date: end_date].copy(deep=True)
@@ -162,6 +208,7 @@ class ObservedData(Data):
         return self.visit_data[self.visit_data['meter_visit_type'] == 'Upload'].index.values
 
     def number_of_upload_dates(self):
+
         return self.visit_data[self.visit_data['meter_visit_type'] == 'Upload'].index.values.size
 
     def installation_dates(self):
