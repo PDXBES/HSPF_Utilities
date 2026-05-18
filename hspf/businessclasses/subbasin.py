@@ -26,6 +26,7 @@ class Subbasin(object):
         self.interflow_area_factor = 1
         self.baseflow_area_factor = 1
         self.soil_areas = dict(zip(self.soil.keys(), len(self.soil)*[0]))
+        self.future = False
         pass
 
     def find_forest_code(self):
@@ -38,11 +39,11 @@ class Subbasin(object):
             if self.hspf.hspf_perv_cover[pervious_cover_code] == "Grass":
                 self.grass_code = pervious_cover_code
 
-    def code_to_implnd_perlnd_area_new(self, o_code, area, predeveloped=False, include_impervious=True):
+    def code_to_implnd_perlnd_area_new(self, o_code, area, predeveloped=False, include_impervious=True, future=False, design_storm_rain_gage=None ):
         if area > 0:
             code = o_code
-            perlnd_group_code = code - code % self.hspf.base_codes["Other"]
-            code = code - perlnd_group_code
+            rain_gage_code = code - code % self.hspf.base_codes["Rain_Gages"]
+            code = code - rain_gage_code
             soil_code = code - code % self.hspf.base_codes["Soils"]
             code = code - soil_code
             connectivity_code = code - code % self.hspf.base_codes["Connectivity"]
@@ -57,9 +58,9 @@ class Subbasin(object):
 
             self.soil_areas[soil_code] += area
 
-            hspf_soil_id = int(self.hspf.soil[soil_code][0] + self.hspf.perlnd_family[int(perlnd_group_code)][0])
+            hspf_soil_id = self.hspf.soil[soil_code][0]
             hspf_imp_cover_id = self.hspf.imp_cover[imp_cover_code][0]
-            hspf_implnd_group_id = int(self.hspf.perlnd_family[int(perlnd_group_code)][0])
+            hspf_rg_id = int(rain_gage_code/self.hspf.base_codes["Rain_Gages"]) #int(self.hspf.rain_gages[int(rain_gage_code/self.hspf.base_codes["Rain_Gages"])])
             land_use = self.land_use[land_use_code]
             connectivity_table = self.connectivity[connectivity_code][0]
             try:
@@ -70,28 +71,40 @@ class Subbasin(object):
             hspf_slope_id = self.hspf.slope[slope_code][0]
 
             if predeveloped:
-                self.pervious_area_to_perlnd(area, self.forest_code, hspf_slope_id, hspf_soil_id)
+                self.pervious_area_to_perlnd(area, self.forest_code, hspf_slope_id, hspf_soil_id, hspf_rg_id)
 #                self.pervious_area_to_perlnd(area/2, self.grass_code, hspf_slope_id, hspf_soil_id)
-            else:
-                if self.hspf.hspf_imp_cover[hspf_imp_cover_id][0:4] != "NONE":
+            elif design_storm_rain_gage is not None:
+                hspf_rg_id = design_storm_rain_gage
+                if self.hspf.hspf_imp_cover[hspf_imp_cover_id][0:4] != "NONE" and not future:
                     self.impervious_area_to_perlnd_implnd(area, hspf_slope_id, hspf_soil_id,
-                                                          hspf_imp_cover_id, hspf_implnd_group_id, imp_connectivity, include_impervious)
+                                                          hspf_imp_cover_id, hspf_rg_id, imp_connectivity, include_impervious)
                 else:
-                    self.pervious_area_to_perlnd(area, hspf_perv_cover_id, hspf_slope_id, hspf_soil_id)
+                    self.pervious_area_to_perlnd(area, hspf_perv_cover_id, hspf_slope_id, hspf_soil_id, hspf_rg_id)
+            else:
+                if self.hspf.hspf_imp_cover[hspf_imp_cover_id][0:4] != "NONE" and not future:
+                    self.impervious_area_to_perlnd_implnd(area, hspf_slope_id, hspf_soil_id,
+                                                          hspf_imp_cover_id, hspf_rg_id, imp_connectivity, include_impervious)
+                else:
+                    self.pervious_area_to_perlnd(area, hspf_perv_cover_id, hspf_slope_id, hspf_soil_id, hspf_rg_id)
 
-    def pervious_area_to_perlnd(self, area, hspf_perv_cover_id, hspf_slope_id, hspf_soil_id):
+    def pervious_area_to_perlnd(self, area, hspf_perv_cover_id, hspf_slope_id, hspf_soil_id, hspf_rg_id):
         self.total_area += area
         self.total_pervious_area += area
         try:
-            perlnd = [perlnd for perlnd in self.perlnds
-                      if perlnd.hspf_soil_id == hspf_soil_id and
-                      perlnd.hspf_cover_id == hspf_perv_cover_id and
-                      perlnd.hspf_slope_id == hspf_slope_id][0]
+            perlnds = []
+            for perlnd in self.perlnds:
+                if perlnd.hspf_soil_id == hspf_soil_id and perlnd.hspf_cover_id == hspf_perv_cover_id and perlnd.hspf_slope_id == hspf_slope_id and perlnd.hspf_rain_gage_id == hspf_rg_id:
+                    perlnds.append(perlnd)
+            if len(perlnds) == 1:
+                perlnd = perlnds[0]
+            else:
+                print("unknown perlnd in pervious_area_to_perlnd")
+
         except:
-            pass
+            print("exception pervious_area_to_perlnd")
         perlnd.area += area
 
-    def impervious_area_to_perlnd_implnd(self, area, hspf_slope_id, hspf_soil_id, hspf_imp_cover_id, hspf_implnd_group_id, imp_connectivity, include_impervious):
+    def impervious_area_to_perlnd_implnd(self, area, hspf_slope_id, hspf_soil_id, hspf_imp_cover_id, hspf_rg_id, imp_connectivity, include_impervious):
         effective_impervious_area = area * imp_connectivity
         pervious_area = area * (1 - imp_connectivity)
         self.total_area += effective_impervious_area
@@ -100,13 +113,14 @@ class Subbasin(object):
         if hspf_imp_cover_id == self.hspf.hspf_imp_cover_id["Bldg"]:
             implnd = [implnd for implnd in self.implnds
                       if implnd.hspf_cover_id == hspf_imp_cover_id and
-                         implnd.group_id == hspf_implnd_group_id][0]
+                      implnd.hspf_rain_gage_id == hspf_rg_id][0]
         else:
             implnd = [implnd for implnd in self.implnds
                       if implnd.hspf_cover_id == hspf_imp_cover_id and
                       implnd.hspf_slope_id == hspf_slope_id and
-                      implnd.group_id == hspf_implnd_group_id][0]
+                      implnd.hspf_rain_gage_id == hspf_rg_id][0]
         if include_impervious:
             implnd.area += effective_impervious_area
-        self.pervious_area_to_perlnd(pervious_area, 3, hspf_slope_id, hspf_soil_id)
+        # ineffective impervious area is assumed to have runoff like grass (urban landscaping)
+        self.pervious_area_to_perlnd(pervious_area, self.grass_code, hspf_slope_id, hspf_soil_id, hspf_rg_id)
 

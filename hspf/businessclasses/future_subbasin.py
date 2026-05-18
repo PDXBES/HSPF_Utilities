@@ -26,7 +26,7 @@ class FutureSubbasin(Subbasin):
         for soil_code in self.hspf.hspf_soil.keys():
             for slope_code in self.hspf.hspf_slope.keys():
                 for perv_cover_code in self.hspf.hspf_perv_cover.keys():
-                    for perlnd_family_code in self.hspf.perlnd_family.values():
+                    for perlnd_family_code in self.hspf.rain_gages.values():
                         key = (soil_code, slope_code, perlnd_family_code[0], perv_cover_code)
                         area = 0
                         self.soil_slope_cover_area_lookup[key] = area
@@ -48,10 +48,10 @@ class FutureSubbasin(Subbasin):
             code = code - perv_cover_code
             slope_code = code - code % self.hspf.base_codes["Slope"]
 
-            hspf_soil_id = int(self.hspf.soil[soil_code][0] + self.hspf.perlnd_family[int(perlnd_group_code)][0]) #TODO should look at separating these
+            hspf_soil_id = int(self.hspf.soil[soil_code][0] + self.hspf.rain_gages[int(perlnd_group_code)][0]) #TODO should look at separating these
             hspf_slope_id = self.hspf.slope[slope_code][0]
             hspf_perv_cover_id = self.hspf.perv_cover[perv_cover_code][0]
-            hspf_implnd_group_id = int(self.hspf.perlnd_family[int(perlnd_group_code)][0])
+            hspf_implnd_group_id = int(self.hspf.rain_gages[int(perlnd_group_code)][0])
             hspf_land_use_id = land_use_code
 
             try:
@@ -64,7 +64,7 @@ class FutureSubbasin(Subbasin):
         for hspf_soil_id in self.hspf.hspf_soil.keys():
             for hspf_slope_id in self.hspf.hspf_slope.keys():
                 for hspf_perv_cover_id in self.hspf.hspf_perv_cover.keys():
-                    for perlnd_family_code in self.hspf.perlnd_family.values():
+                    for perlnd_family_code in self.hspf.rain_gages.values():
                         try:
                             hspf_imp_cover_id = self.hspf.hspf_imp_cover_id[self.area_type]
                             soil_slope_area = self.soil_slope_cover_area_lookup[(hspf_soil_id, hspf_slope_id, perlnd_family_code[0], hspf_perv_cover_id)]
