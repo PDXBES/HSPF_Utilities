@@ -1,0 +1,16 @@
+cltoolbox
+numba
+numpy<2.0
+pandas
+tables
+
+[dev]
+hsp2[test]
+
+[slim]
+numba
+pandas
+
+[test]
+pytest
+pytest-cov

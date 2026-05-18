@@ -1,0 +1,2 @@
+[console_scripts]
+hsp2 = hsp2.hsp2tools.HSP2_CLI:main
